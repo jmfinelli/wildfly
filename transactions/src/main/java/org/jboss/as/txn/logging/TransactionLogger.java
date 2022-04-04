@@ -256,4 +256,12 @@ public interface TransactionLogger extends BasicLogger {
 
     @Message(id = 40, value = "There is no active transaction at the current context to register synchronization '%s'")
     IllegalStateException noActiveTransactionToRegisterSynchronization(Synchronization sync);
+
+    @LogMessage(level = WARN)
+    @Message(id = 41, value = "Cannot read the value of the attribute %s. The recovery manager will be suspended (default behaviour).")
+    void cannotReadTransactionSubsystemAttribute(String attributeName, @Cause Exception e);
+
+    @LogMessage(level = WARN)
+    @Message(id = 42, value = "Cannot probe the object store during suspension")
+    void cannotProbeObjectStoreOnSuspension(@Cause Exception e);
 }
