@@ -43,6 +43,18 @@
         <transformer-input-dir>${project.basedir}/../../../rts</transformer-input-dir>
     </properties>
 
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>${ee.maven.groupId}</groupId>
+                <artifactId>wildfly-standard-ee-bom</artifactId>
+                <version>${ee.maven.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
         <dependency>
             <groupId>jakarta.transaction</groupId>
@@ -134,26 +146,27 @@
         <!-- skip java.xml -->
         <dependency>
             <groupId>org.jboss.narayana.jts</groupId>
-            <artifactId>narayana-jts-idlj-jakarta</artifactId>
+            <artifactId>narayana-jts-idlj</artifactId>
+            <version>${version.org.jboss.narayana}</version>
         </dependency>
         <dependency>
             <groupId>org.jboss.narayana.rts</groupId>
-            <artifactId>restat-integration-jakarta</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.jboss.narayana.rts</groupId>
-            <artifactId>restat-bridge-jakarta</artifactId>
+            <artifactId>restat-integration</artifactId>
         </dependency>
 
         <dependency>
             <groupId>org.jboss.narayana.rts</groupId>
-            <artifactId>restat-api-jakarta</artifactId>
+            <artifactId>restat-bridge</artifactId>
         </dependency>
 
         <dependency>
             <groupId>org.jboss.narayana.rts</groupId>
-            <artifactId>restat-util-jakarta</artifactId>
+            <artifactId>restat-api</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.jboss.narayana.rts</groupId>
+            <artifactId>restat-util</artifactId>
         </dependency>
 
         <dependency>
