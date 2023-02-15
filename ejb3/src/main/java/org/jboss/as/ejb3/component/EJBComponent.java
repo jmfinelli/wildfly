@@ -596,8 +596,9 @@ public abstract class EJBComponent extends BasicComponent implements ServerActiv
     }
 
     @Override
-    public void done() {
+    public Void done() {
         super.stop();
+        return null;
     }
 
 

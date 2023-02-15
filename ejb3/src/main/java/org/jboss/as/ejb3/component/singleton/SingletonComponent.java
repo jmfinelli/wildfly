@@ -143,9 +143,9 @@ public class SingletonComponent extends SessionBeanComponent {
     }
 
     @Override
-    public void done() {
+    public Void done() {
         this.destroySingletonInstance();
-        super.done();
+        return super.done();
     }
 
     public LockType getLockType(Method method) {

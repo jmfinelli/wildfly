@@ -431,32 +431,39 @@ public class JobOperatorService extends AbstractJobOperator implements WildFlyJo
         }
 
         @Override
-        public void preSuspend(final ServerActivityCallback serverActivityCallback) {
-            serverActivityCallback.done();
+        public Callable<Void> preSuspend(final ServerActivityCallback serverActivityCallback) {
+            return serverActivityCallback::done;
         }
 
         @Override
-        public void suspended(final ServerActivityCallback serverActivityCallback) {
+        public Callable<Void> suspended(final ServerActivityCallback serverActivityCallback) {
             synchronized (this) {
                 suspended = true;
             }
-            try {
-                stopRunningJobs(isRestartOnResume());
-            } finally {
-                serverActivityCallback.done();
-            }
+
+            return () -> {
+                try {
+                    stopRunningJobs(isRestartOnResume());
+                } finally {
+                    serverActivityCallback.done();
+                }
+                return null;
+            };
         }
 
         @Override
-        public void resume() {
+        public Callable<Void> resume() {
             boolean doResume;
             synchronized (this) {
                 suspended = false;
                 doResume = running;
             }
-            if (doResume) {
-                restartStoppedJobs();
-            }
+            return () -> {
+                if (doResume) {
+                    restartStoppedJobs();
+                }
+                return null;
+            };
         }
 
         @Override

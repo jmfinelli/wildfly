@@ -15,6 +15,7 @@
  */
 package org.jboss.as.ejb3.suspend;
 
+import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
@@ -190,8 +191,8 @@ public class EJBSuspendHandlerService implements Service<EJBSuspendHandlerServic
      * Pre suspend. Do nothing.
      * @param listener callback listener
      */
-    @Override public void preSuspend(ServerActivityCallback listener) {
-        listener.done();
+    @Override public Callable<Void> preSuspend(ServerActivityCallback listener) {
+        return listener::done;
     }
 
     /**
@@ -200,37 +201,43 @@ public class EJBSuspendHandlerService implements Service<EJBSuspendHandlerServic
      *
      * @param listener callback listener
      */
-    @Override public void suspended(ServerActivityCallback listener) {
+    @Override public Callable<Void> suspended(ServerActivityCallback listener) {
         this.suspended = true;
         listenerUpdater.set(this, listener);
-        localTransactionContextInjectedValue.getValue().suspendRequests();
+        return () -> {
+            localTransactionContextInjectedValue.getValue().suspendRequests();
 
-        final int activeInvocationCount = activeInvocationCountUpdater.get(this);
-        if (activeInvocationCount == 0) {
-            if (gracefulTxnShutdown) {
-                final int activeTransactionCountUpdaterAtShutdown = activeTransactionCountUpdater.get(this);
-                if (activeTransactionCountUpdaterAtShutdown == 0) {
-                    this.doneSuspended();
+            final int activeInvocationCount = activeInvocationCountUpdater.get(this);
+            if (activeInvocationCount == 0) {
+                if (gracefulTxnShutdown) {
+                    final int activeTransactionCountUpdaterAtShutdown = activeTransactionCountUpdater.get(this);
+                    if (activeTransactionCountUpdaterAtShutdown == 0) {
+                        return this.doneSuspended();
+                    } else {
+                        EjbLogger.ROOT_LOGGER.suspensionWaitingActiveTransactions(activeTransactionCountUpdaterAtShutdown);
+                    }
                 } else {
-                    EjbLogger.ROOT_LOGGER.suspensionWaitingActiveTransactions(activeTransactionCountUpdaterAtShutdown);
+                    return this.doneSuspended();
                 }
-            } else {
-                this.doneSuspended();
             }
-        }
+            return null;
+        };
     }
 
     /**
      * Notifies local transaction context that server is resumed, and restarts deployment controller.
      */
-    @Override public void resume() {
+    @Override public Callable<Void> resume() {
         this.suspended = false;
-        localTransactionContextInjectedValue.getValue().resumeRequests();
-        ServerActivityCallback listener = listenerUpdater.get(this);
-        if (listener != null) {
-            listenerUpdater.compareAndSet(this, listener, null);
-        }
-        deploymentRepositoryInjectedValue.getValue().resume();
+        return () -> {
+            localTransactionContextInjectedValue.getValue().resumeRequests();
+            ServerActivityCallback listener = listenerUpdater.get(this);
+            if (listener != null) {
+                listenerUpdater.compareAndSet(this, listener, null);
+            }
+            deploymentRepositoryInjectedValue.getValue().resume();
+            return null;
+        };
     }
 
     /**
@@ -314,13 +321,14 @@ public class EJBSuspendHandlerService implements Service<EJBSuspendHandlerServic
     /**
      * Completes suspension: stop deployment controller.
      */
-    private void doneSuspended() {
+    private Void doneSuspended() {
         final ServerActivityCallback oldListener = listener;
         if (oldListener != null && listenerUpdater.compareAndSet(this, oldListener, null)) {
             deploymentRepositoryInjectedValue.getValue().suspend();
             oldListener.done();
             EjbLogger.ROOT_LOGGER.suspensionComplete();
         }
+        return null;
     }
 
     /**

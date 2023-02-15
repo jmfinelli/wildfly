@@ -36,6 +36,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -99,19 +100,20 @@ public class Host implements Service<Host>, FilterLocation {
 
     ServerActivity suspendListener = new ServerActivity() {
         @Override
-        public void preSuspend(ServerActivityCallback listener) {
+        public Callable<Void> preSuspend(ServerActivityCallback listener) {
             defaultHandler.setSuspended(true);
-            listener.done();
+            return listener::done;
         }
 
         @Override
-        public void suspended(ServerActivityCallback listener) {
-            listener.done();
+        public Callable<Void> suspended(ServerActivityCallback listener) {
+            return listener::done;
         }
 
         @Override
-        public void resume() {
+        public Callable<Void> resume() {
             defaultHandler.setSuspended(false);
+            return null;
         }
     };
 

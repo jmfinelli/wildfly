@@ -153,6 +153,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -931,32 +932,39 @@ public class UndertowDeploymentInfoService implements Service<DeploymentInfo> {
                 webSocketDeploymentInfo.addListener(wsc -> {
                     serverActivity.set(new ServerActivity() {
                         @Override
-                        public void preSuspend(ServerActivityCallback listener) {
-                            listener.done();
+                        public Callable<Void> preSuspend(ServerActivityCallback listener) {
+                            return listener::done;
                         }
 
                         @Override
-                        public void suspended(final ServerActivityCallback listener) {
+                        public Callable<Void> suspended(final ServerActivityCallback listener) {
                             if(wsc.getConfiguredServerEndpoints().isEmpty()) {
                                 //TODO: remove this once undertow bug fix is upstream
-                                listener.done();
-                                return;
+                                return listener::done;
                             }
-                            wsc.pause(new ServerWebSocketContainer.PauseListener() {
-                                @Override
-                                public void paused() {
-                                    listener.done();
-                                }
 
-                                @Override
-                                public void resumed() {
-                                }
-                            });
+                            return () -> {
+                                wsc.pause(new ServerWebSocketContainer.PauseListener() {
+                                    @Override
+                                    public void paused() {
+                                        listener.done();
+                                    }
+
+                                    @Override
+                                    public void resumed() {
+                                    }
+                                });
+
+                                return null;
+                            };
                         }
 
                         @Override
-                        public void resume() {
-                            wsc.resume();
+                        public Callable<Void> resume() {
+                            return () -> {
+                                wsc.resume();
+                                return null;
+                            };
                         }
                     });
                     suspendController.get().registerActivity(serverActivity.get());

@@ -29,6 +29,7 @@ import org.jboss.as.server.suspend.ServerActivityCallback;
 
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
+import java.util.concurrent.Callable;
 
 /**
  * Listens for notifications from a {@code SuspendController} and a {@code ProcessStateNotifier} and reacts
@@ -51,12 +52,12 @@ public class RecoverySuspendController implements ServerActivity, PropertyChange
      * Do nothing.
      */
     @Override
-    public void preSuspend(ServerActivityCallback listener) {
-        listener.done();
+    public Callable<Void> preSuspend(ServerActivityCallback listener) {
+        return () -> listener.done();
     }
 
     @Override
-    public void suspended(ServerActivityCallback serverActivityCallback) {
+    public Callable<Void> suspended(ServerActivityCallback serverActivityCallback) {
         // Check if there are (any) transactions in the object store.
         // Consider that looking in the Object Store might not be enough: there might be other
         // transactions around (e.g. at participant level) that aren't recorded in the object store.
@@ -71,8 +72,10 @@ public class RecoverySuspendController implements ServerActivity, PropertyChange
         // This record should be enough to guide the suspension here
 
         suspended = true;
-        recoveryManagerService.suspend();
-        serverActivityCallback.done();
+        return () -> {
+            recoveryManagerService.suspend();
+            return serverActivityCallback.done();
+        };
     }
 
     /**
@@ -82,15 +85,19 @@ public class RecoverySuspendController implements ServerActivity, PropertyChange
      * the process state is running.
      */
     @Override
-    public void resume() {
-        boolean doResume;
+    public Callable<Void> resume() {
+        return () -> {
+            boolean doResume;
 
-        suspended = false;
-        doResume = running;
+            suspended = false;
+            doResume = running;
 
-        if (doResume) {
-            resumeRecovery();
-        }
+            if (doResume) {
+                resumeRecovery();
+            }
+
+            return null;
+        };
     }
 
     /**

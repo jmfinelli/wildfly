@@ -115,11 +115,11 @@ public class StatelessSessionComponent extends SessionBeanComponent implements P
 
 
     @Override
-    public void done() {
+    public Void done() {
         if(this.pool!=null){
             this.pool.stop();
         }
-        super.done();
+        return super.done();
     }
 
     @Override

@@ -24,6 +24,7 @@ package org.wildfly.mod_cluster.undertow;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -185,25 +186,29 @@ public class UndertowEventHandlerAdapterService implements UndertowEventListener
     }
 
     @Override
-    public synchronized void preSuspend(ServerActivityCallback listener) {
-        try {
-            for (Context context : this.contexts) {
-                this.configuration.getContainerEventHandler().stop(context);
+    public synchronized Callable<Void> preSuspend(ServerActivityCallback listener) {
+        return () -> {
+            try {
+                for (Context context : this.contexts) {
+                    this.configuration.getContainerEventHandler().stop(context);
+                }
+            } finally {
+                listener.done();
             }
-        } finally {
-            listener.done();
-        }
+            return null;
+        };
     }
 
     @Override
-    public void suspended(ServerActivityCallback listener) {
-        listener.done();
+    public Callable<Void> suspended(ServerActivityCallback listener) {
+        return listener::done;
     }
 
     @Override
-    public void resume() {
+    public Callable<Void> resume() {
         for (Context context : this.contexts) {
             this.configuration.getContainerEventHandler().start(context);
         }
+        return null;
     }
 }

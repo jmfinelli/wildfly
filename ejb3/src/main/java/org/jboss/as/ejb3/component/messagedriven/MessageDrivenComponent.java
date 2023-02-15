@@ -27,6 +27,7 @@ import static org.jboss.as.ejb3.logging.EjbLogger.ROOT_LOGGER;
 
 import java.lang.reflect.Method;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import jakarta.ejb.TransactionAttributeType;
 import jakarta.resource.ResourceException;
@@ -85,27 +86,32 @@ public class MessageDrivenComponent extends EJBComponent implements PooledCompon
      */
     private final ServerActivity serverActivity = new ServerActivity() {
         @Override
-        public void preSuspend(ServerActivityCallback listener) {
-            synchronized (MessageDrivenComponent.this) {
-                if (deliveryActive) {
-                    deactivate();
+        public Callable<Void> preSuspend(ServerActivityCallback listener) {
+            return () -> {
+                synchronized (MessageDrivenComponent.this) {
+                    if (deliveryActive) {
+                        deactivate();
+                    }
                 }
-            }
-            listener.done();
+                return listener.done();
+            };
         }
 
-        public void suspended(ServerActivityCallback listener) {
+        public Callable<Void> suspended(ServerActivityCallback listener) {
             suspended = true;
-            listener.done();
+            return listener::done;
         }
 
         @Override
-        public void resume() {
+        public Callable<Void> resume() {
             synchronized (MessageDrivenComponent.this) {
                 suspended = false;
-                if (deliveryActive) {
-                    activate();
-                }
+                return () -> {
+                    if (deliveryActive) {
+                        activate();
+                    }
+                    return null;
+                };
             }
         }
     };
@@ -251,7 +257,7 @@ public class MessageDrivenComponent extends EJBComponent implements PooledCompon
     }
 
     @Override
-    public void done() {
+    public Void done() {
         synchronized (this) {
             if (this.deliveryActive) {
                 this.deactivate();
@@ -264,7 +270,7 @@ public class MessageDrivenComponent extends EJBComponent implements PooledCompon
         }
 
         suspendController.unRegisterActivity(serverActivity);
-        super.done();
+        return super.done();
     }
 
     private void activate() {
