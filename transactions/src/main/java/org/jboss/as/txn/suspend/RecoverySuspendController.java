@@ -40,27 +40,38 @@ import java.beans.PropertyChangeListener;
 public class RecoverySuspendController implements ServerActivity, PropertyChangeListener {
 
     private final RecoveryManagerService recoveryManagerService;
-    private boolean suspended;
-    private boolean running;
+    private volatile boolean suspended = false;
+    private volatile boolean running;
 
     public RecoverySuspendController(RecoveryManagerService recoveryManagerService) {
         this.recoveryManagerService = recoveryManagerService;
     }
 
     /**
-     * {@link RecoveryManagerService#suspend() Suspends} the {@link RecoveryManagerService}.
+     * Do nothing.
      */
     @Override
-    public void preSuspend(ServerActivityCallback serverActivityCallback) {
-        synchronized (this) {
-            suspended = true;
-        }
-        recoveryManagerService.suspend();
-        serverActivityCallback.done();
+    public void preSuspend(ServerActivityCallback listener) {
+        listener.done();
     }
 
     @Override
     public void suspended(ServerActivityCallback serverActivityCallback) {
+        // Check if there are (any) transactions in the object store.
+        // Consider that looking in the Object Store might not be enough: there might be other
+        // transactions around (e.g. at participant level) that aren't recorded in the object store.
+        // In those cases, this subsystem should wait to suspend.
+        // How do I intercept those transactions? The WildFly transaction client should have enough info
+        // regarding this, shouldn't it? Maybe Michael is right thought: Narayana (in its JTA/JTS integrations)
+        // should have enough info regarding how many transactions are still running. If that's the case,
+        // I should expose that information with an ad-hoc class putting together:
+        // - Transaction ID
+        // - Starting time
+        // - Timeout
+        // This record should be enough to guide the suspension here
+
+        suspended = true;
+        recoveryManagerService.suspend();
         serverActivityCallback.done();
     }
 
@@ -73,10 +84,10 @@ public class RecoverySuspendController implements ServerActivity, PropertyChange
     @Override
     public void resume() {
         boolean doResume;
-        synchronized (this) {
-            suspended = false;
-            doResume = running;
-        }
+
+        suspended = false;
+        doResume = running;
+
         if (doResume) {
             resumeRecovery();
         }
@@ -91,15 +102,12 @@ public class RecoverySuspendController implements ServerActivity, PropertyChange
     @Override
     public void propertyChange(PropertyChangeEvent evt) {
         boolean doResume;
-        synchronized (this) {
-            ControlledProcessState.State newState = (ControlledProcessState.State) evt.getNewValue();
-            running = newState.isRunning();
-            doResume = running && !suspended;
-        }
+        ControlledProcessState.State newState = (ControlledProcessState.State) evt.getNewValue();
+        running = newState.isRunning();
+        doResume = running && !suspended;
         if (doResume) {
             resumeRecovery();
         }
-
     }
 
     private void resumeRecovery() {
