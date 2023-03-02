@@ -28,6 +28,7 @@ import java.util.List;
 
 import com.arjuna.ats.internal.jta.recovery.arjunacore.SubordinateAtomicActionRecoveryModule;
 import com.arjuna.ats.internal.jta.recovery.jts.JCAServerTransactionRecoveryModule;
+import com.arjuna.ats.jbossatx.jta.TransactionManagerService;
 import org.jboss.as.controller.ProcessStateNotifier;
 import org.jboss.as.network.ManagedBinding;
 import org.jboss.as.network.SocketBinding;
@@ -76,6 +77,7 @@ public class ArjunaRecoveryManagerService implements Service<RecoveryManagerServ
     private final InjectedValue<SocketBinding> statusBindingInjector = new InjectedValue<SocketBinding>();
     private final InjectedValue<SuspendController> suspendControllerInjector = new InjectedValue<>();
     private final InjectedValue<ProcessStateNotifier> processStateInjector = new InjectedValue<>();
+    private final InjectedValue<TransactionManagerService> transactionManagerServiceInjector = new InjectedValue<>();
 
     private RecoveryManagerService recoveryManagerService;
     private RecoverySuspendController recoverySuspendController;
@@ -163,7 +165,9 @@ public class ArjunaRecoveryManagerService implements Service<RecoveryManagerServ
             }
         }
 
-        recoverySuspendController = new RecoverySuspendController(recoveryManagerService);
+        TransactionManagerService transactionManagerService = transactionManagerServiceInjector.getValue();
+
+        recoverySuspendController = new RecoverySuspendController(recoveryManagerService, transactionManagerService);
         processStateInjector.getValue().addPropertyChangeListener(recoverySuspendController);
         suspendControllerInjector.getValue().registerActivity(recoverySuspendController);
     }
@@ -207,5 +211,9 @@ public class ArjunaRecoveryManagerService implements Service<RecoveryManagerServ
 
     public Injector<SocketBindingManager> getBindingManager() {
         return bindingManager;
+    }
+
+    public Injector<TransactionManagerService> getTransactionManagerService() {
+        return transactionManagerServiceInjector;
     }
 }

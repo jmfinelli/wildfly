@@ -23,6 +23,8 @@
 package org.jboss.as.txn.suspend;
 
 import com.arjuna.ats.jbossatx.jta.RecoveryManagerService;
+import com.arjuna.ats.jbossatx.jta.TransactionManagerService;
+import com.arjuna.ats.jta.transaction.Transaction;
 import org.jboss.as.controller.ControlledProcessState;
 import org.jboss.as.server.suspend.ServerActivity;
 import org.jboss.as.server.suspend.ServerActivityCallback;
@@ -30,6 +32,8 @@ import org.jboss.as.server.suspend.ServerActivityCallback;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.util.concurrent.Callable;
+
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 /**
  * Listens for notifications from a {@code SuspendController} and a {@code ProcessStateNotifier} and reacts
@@ -39,13 +43,14 @@ import java.util.concurrent.Callable;
  * @author <a href="mailto:gytis@redhat.com">Gytis Trikleris</a>
  */
 public class RecoverySuspendController implements ServerActivity, PropertyChangeListener {
-
     private final RecoveryManagerService recoveryManagerService;
+    private final TransactionManagerService transactionManagerService;
     private volatile boolean suspended = false;
     private volatile boolean running;
 
-    public RecoverySuspendController(RecoveryManagerService recoveryManagerService) {
+    public RecoverySuspendController(RecoveryManagerService recoveryManagerService, TransactionManagerService transactionManagerService) {
         this.recoveryManagerService = recoveryManagerService;
+        this.transactionManagerService = transactionManagerService;
     }
 
     /**
@@ -58,22 +63,24 @@ public class RecoverySuspendController implements ServerActivity, PropertyChange
 
     @Override
     public Callable<Void> suspended(ServerActivityCallback serverActivityCallback) {
-        // Check if there are (any) transactions in the object store.
-        // Consider that looking in the Object Store might not be enough: there might be other
-        // transactions around (e.g. at participant level) that aren't recorded in the object store.
-        // In those cases, this subsystem should wait to suspend.
-        // How do I intercept those transactions? The WildFly transaction client should have enough info
-        // regarding this, shouldn't it? Maybe Michael is right thought: Narayana (in its JTA/JTS integrations)
-        // should have enough info regarding how many transactions are still running. If that's the case,
-        // I should expose that information with an ad-hoc class putting together:
-        // - Transaction ID
-        // - Starting time
-        // - Timeout
-        // This record should be enough to guide the suspension here
 
-        suspended = true;
         return () -> {
+            int numberOfTransactions = transactionManagerService.getTransactions().size();
+
+            // Extract the maximum timeout needed to make sure that enough time is elapsed
+            if (numberOfTransactions > 0) {
+                // As numberOfTransactions is > 0, isPresent() can be avoided
+                int timeout = transactionManagerService.getTransactions().values().stream().mapToInt(Transaction::getTimeout).max().getAsInt();
+                Thread.sleep(SECONDS.toMillis(timeout));
+            }
+
+            while (numberOfTransactions != 0) {
+                Thread.sleep(500);
+                numberOfTransactions = transactionManagerService.getTransactions().size();
+            }
+
             recoveryManagerService.suspend();
+            suspended = true;
             return serverActivityCallback.done();
         };
     }

@@ -428,6 +428,7 @@ class TransactionSubsystemAdd extends AbstractBoottimeAddStepHandler {
                 .addCapabilityRequirement("org.wildfly.management.process-state-notifier", ProcessStateNotifier.class, recoveryManagerService.getProcessStateInjector());
         recoveryManagerServiceServiceBuilder.requires(TxnServices.JBOSS_TXN_CORE_ENVIRONMENT);
         recoveryManagerServiceServiceBuilder.requires(TxnServices.JBOSS_TXN_ARJUNA_OBJECTSTORE_ENVIRONMENT);
+        recoveryManagerServiceServiceBuilder.addDependency(TxnServices.JBOSS_TXN_ARJUNA_TRANSACTION_MANAGER, com.arjuna.ats.jbossatx.jta.TransactionManagerService.class, recoveryManagerService.getTransactionManagerService());
         recoveryManagerServiceServiceBuilder.addAliases(TxnServices.JBOSS_TXN_ARJUNA_RECOVERY_MANAGER);
         recoveryManagerServiceServiceBuilder.setInitialMode(Mode.ACTIVE);
 
@@ -538,7 +539,7 @@ class TransactionSubsystemAdd extends AbstractBoottimeAddStepHandler {
         transactionManagerServiceServiceBuilder.addDependency(TxnServices.JBOSS_TXN_USER_TRANSACTION_REGISTRY, UserTransactionRegistry.class, transactionManagerService.getUserTransactionRegistry());
         transactionManagerServiceServiceBuilder.requires(TxnServices.JBOSS_TXN_CORE_ENVIRONMENT);
         transactionManagerServiceServiceBuilder.requires(TxnServices.JBOSS_TXN_ARJUNA_OBJECTSTORE_ENVIRONMENT);
-        transactionManagerServiceServiceBuilder.requires(XA_RESOURCE_RECOVERY_REGISTRY_CAPABILITY.getCapabilityServiceName());
+        //transactionManagerServiceServiceBuilder.requires(XA_RESOURCE_RECOVERY_REGISTRY_CAPABILITY.getCapabilityServiceName());
         transactionManagerServiceServiceBuilder.setInitialMode(Mode.ACTIVE);
         transactionManagerServiceServiceBuilder.install();
     }
