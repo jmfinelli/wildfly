@@ -58,7 +58,10 @@ public class RecoverySuspendController implements ServerActivity, PropertyChange
      */
     @Override
     public Callable<Void> preSuspend(ServerActivityCallback listener) {
-        return () -> listener.done();
+        return () -> {
+            transactionManagerService.disableTransactionCreation();
+            return listener.done();
+        };
     }
 
     @Override
@@ -103,6 +106,7 @@ public class RecoverySuspendController implements ServerActivity, PropertyChange
                 resumeRecovery();
             }
 
+            transactionManagerService.enableTransactionCreation();
             return null;
         };
     }
