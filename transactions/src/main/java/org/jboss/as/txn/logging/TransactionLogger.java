@@ -254,4 +254,12 @@ public interface TransactionLogger extends BasicLogger {
 
     @Message(id = 40, value = "There is no active transaction at the current context to register synchronization '%s'")
     IllegalStateException noActiveTransactionToRegisterSynchronization(Synchronization sync);
+
+    @LogMessage(level = WARN)
+    @Message(id = 41, value = "To finalise the suspension, %d in-flight transaction(s) require(s) attention. Suspending will be delayed for %d milliseconds.")
+    void inFlightTransactionToCompleteBeforeSuspension(int numberoOfTransactions, long milliseconds);
+
+    @LogMessage(level = WARN)
+    @Message(id = 42, value = "To finalise the suspension, %d in-doubt transaction(s) require(s) attention. Suspending will be delayed for %d milliseconds.")
+    void inDoubtTransactionToCompleteBeforeSuspension(int numberOfLeftOverTransactions, long milliseconds);
 }

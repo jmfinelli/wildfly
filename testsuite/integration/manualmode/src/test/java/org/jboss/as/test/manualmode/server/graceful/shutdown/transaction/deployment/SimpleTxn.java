@@ -3,16 +3,16 @@ package org.jboss.as.test.manualmode.server.graceful.shutdown.transaction.deploy
 import jakarta.annotation.Resource;
 import jakarta.transaction.TransactionManager;
 import jakarta.transaction.UserTransaction;
-import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.core.Response;
 import org.jboss.as.test.integration.transactions.TestXAResource;
 
-@Path(SimpleTxn.SIMPLE_TXN_PATH)
+@Path(SimpleTxn.TXN_GENERATOR_PATH)
 public class SimpleTxn {
 
-    public static final String SIMPLE_TXN_PATH = "/txn";
+    public static final String TXN_GENERATOR_PATH = "/txn-generator";
+    public static final String SIMPLE_HEURISTIC_PATH = "/atomic-action-heuristic-commit";
 
     @Resource(lookup = "java:comp/UserTransaction")
     UserTransaction userTransaction;
@@ -21,6 +21,7 @@ public class SimpleTxn {
     TransactionManager transactionManager;
 
     @POST
+    @Path(SimpleTxn.SIMPLE_HEURISTIC_PATH)
     public Response failCommit() {
         try {
             userTransaction.begin();
@@ -36,11 +37,6 @@ public class SimpleTxn {
         } catch (Exception exception) {
             return Response.serverError().build();
         }
-    }
-
-    @GET
-    public String get() {
-        return "Hello";
     }
 
 }

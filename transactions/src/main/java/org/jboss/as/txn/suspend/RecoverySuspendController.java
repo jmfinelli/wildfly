@@ -22,9 +22,11 @@
 
 package org.jboss.as.txn.suspend;
 
+import com.arjuna.ats.arjuna.common.RecoveryEnvironmentBean;
 import com.arjuna.ats.jbossatx.jta.RecoveryManagerService;
 import com.arjuna.ats.jbossatx.jta.TransactionManagerService;
 import com.arjuna.ats.jta.transaction.Transaction;
+import com.arjuna.common.internal.util.propertyservice.BeanPopulator;
 import org.jboss.as.controller.ControlledProcessState;
 import org.jboss.as.server.suspend.ServerActivity;
 import org.jboss.as.server.suspend.ServerActivityCallback;
@@ -34,6 +36,7 @@ import java.beans.PropertyChangeListener;
 import java.util.concurrent.Callable;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.jboss.as.txn.logging.TransactionLogger.ROOT_LOGGER;
 
 /**
  * Listens for notifications from a {@code SuspendController} and a {@code ProcessStateNotifier} and reacts
@@ -43,6 +46,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
  * @author <a href="mailto:gytis@redhat.com">Gytis Trikleris</a>
  */
 public class RecoverySuspendController implements ServerActivity, PropertyChangeListener {
+    private final RecoveryEnvironmentBean recoveryEnvironmentBean = BeanPopulator.getDefaultInstance(RecoveryEnvironmentBean.class);
     private final RecoveryManagerService recoveryManagerService;
     private final TransactionManagerService transactionManagerService;
     private volatile boolean suspended = false;
@@ -68,19 +72,34 @@ public class RecoverySuspendController implements ServerActivity, PropertyChange
     public Callable<Void> suspended(ServerActivityCallback serverActivityCallback) {
 
         return () -> {
-            int numberOfTransactions = transactionManagerService.getTransactions().size();
 
-            // Extract the maximum timeout needed to make sure that enough time is elapsed
-            if (numberOfTransactions > 0) {
-                // As numberOfTransactions is > 0, isPresent() can be avoided
-                int timeout = transactionManagerService.getTransactions().values().stream().mapToInt(Transaction::getTimeout).max().getAsInt();
-                Thread.sleep(SECONDS.toMillis(timeout));
-            }
+            int numberOfTransactions;
+            int numberOfLeftOverTransactions;
 
-            while (numberOfTransactions != 0) {
-                Thread.sleep(500);
+            do {
+                numberOfLeftOverTransactions = recoveryManagerService.leftOverTransactions();
                 numberOfTransactions = transactionManagerService.getTransactions().size();
-            }
+
+                // Here, in-flight transactions are processed to work out the maximum timeout
+                // needed to make sure that enough time is elapsed before going ahead.
+                if (numberOfTransactions > 0) {
+                    // As numberOfTransactions is > 0, isPresent() can be avoided
+                    long timeout = SECONDS.toMillis(
+                            Integer.max(
+                                    transactionManagerService.getTransactions().values().stream().mapToInt(Transaction::getTimeout).max().getAsInt(),
+                                    recoveryEnvironmentBean.getRecoveryBackoffPeriod()));
+
+                    ROOT_LOGGER.inFlightTransactionToCompleteBeforeSuspension(numberOfTransactions, timeout);
+                    Thread.sleep(timeout);
+                }
+
+                if (numberOfLeftOverTransactions > 0) {
+                    long delay = SECONDS.toMillis(recoveryEnvironmentBean.getRecoveryBackoffPeriod());
+                    ROOT_LOGGER.inDoubtTransactionToCompleteBeforeSuspension(numberOfLeftOverTransactions, delay);
+                    Thread.sleep(delay);
+                }
+
+            } while (numberOfTransactions != 0 || numberOfLeftOverTransactions != 0);
 
             recoveryManagerService.suspend();
             suspended = true;
