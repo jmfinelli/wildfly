@@ -1,4 +1,4 @@
-package org.jboss.as.test.manualmode.server.graceful.shutdown.transaction.deployment;
+package org.jboss.as.test.manualmode.server.graceful.shutdown.transaction.deployments;
 
 import jakarta.annotation.Resource;
 import jakarta.transaction.TransactionManager;

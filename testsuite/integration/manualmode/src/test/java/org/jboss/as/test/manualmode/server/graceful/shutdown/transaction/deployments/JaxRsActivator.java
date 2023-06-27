@@ -1,4 +1,4 @@
-package org.jboss.as.test.manualmode.server.graceful.shutdown.transaction.deployment;
+package org.jboss.as.test.manualmode.server.graceful.shutdown.transaction.deployments;
 
 import jakarta.ws.rs.ApplicationPath;
 import jakarta.ws.rs.core.Application;
