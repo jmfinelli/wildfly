@@ -1,15 +1,32 @@
 package org.jboss.as.test.manualmode.server.graceful.shutdown.transaction;
 
+import jakarta.ws.rs.client.Client;
+import jakarta.ws.rs.client.ClientBuilder;
+import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.UriBuilder;
+import org.jboss.arquillian.container.test.api.ContainerController;
+import org.jboss.arquillian.container.test.api.Deployer;
+import org.jboss.arquillian.container.test.api.RunAsClient;
+import org.jboss.arquillian.junit.Arquillian;
+import org.jboss.arquillian.test.api.ArquillianResource;
 import org.jboss.as.arquillian.container.ManagementClient;
 import org.jboss.as.controller.PathAddress;
 import org.jboss.as.controller.client.ModelControllerClient;
 import org.jboss.as.test.shared.TestSuiteEnvironment;
 import org.jboss.dmr.ModelNode;
+import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.runner.RunWith;
 import org.wildfly.test.api.Authentication;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.List;
 
@@ -24,14 +41,70 @@ import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.REM
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.RESULT;
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.SUCCESS;
 
-public class TransactionTestBase {
+@RunWith(Arquillian.class)
+@RunAsClient
+public abstract class TransactionTestBase {
 
     static final String CONTAINER = "graceful-shutdown-server";
-    static final String DEPLOYMENT = "deployment";
     static final int recoveryBackoffPeriod = 1;
     static final int periodicRecoveryPeriod = 5;
+    static SetupRecovery setUpRecovery = new SetupRecovery(periodicRecoveryPeriod, recoveryBackoffPeriod);
+    static Client client;
+
+    @ArquillianResource
+    static ContainerController containerController;
+    @ArquillianResource
+    Deployer deployer;
+
     ModelControllerClient modelControllerClient;
     ManagementClient managementClient;
+
+    @BeforeClass
+    public static void setUpClient() {
+        client = ClientBuilder.newClient();
+    }
+
+    @AfterClass
+    public static void close() {
+        client.close();
+    }
+
+    @Before
+    public void setup() throws Exception {
+        if (!containerController.isStarted(CONTAINER)) {
+            containerController.start(CONTAINER);
+        }
+
+        // Let's configure the server
+        this.modelControllerClient = createModelControllerClient(CONTAINER);
+        this.managementClient = createManagementClient(modelControllerClient);
+
+        customServerConfiguration();
+
+        containerController.stop(CONTAINER);
+        containerController.start(CONTAINER);
+
+        deploy();
+    }
+
+    void customServerConfiguration() throws Exception {
+        setUpRecovery.setUpRecovery(modelControllerClient, managementClient);
+    }
+
+    abstract void deploy();
+
+    @After
+    public void cleanUp() throws Exception {
+        if (!containerController.isStarted(CONTAINER)) {
+            containerController.start(CONTAINER);
+        }
+
+        customServerTearDown();
+    }
+
+    void customServerTearDown() throws Exception {
+        setUpRecovery.tearDownRecovery(modelControllerClient);
+    }
 
     static ManagementClient createManagementClient(final ModelControllerClient client) throws UnknownHostException {
 
@@ -56,8 +129,81 @@ public class TransactionTestBase {
     }
 
     //========================================
+    //======== Transactions creation =========
+    //========================================
+
+    void heuristicTransactionCreationBase(URL baseURL, String root, String application, String method, Client client, int expectedCode, String deploymentName) throws Exception {
+
+        restCall(baseURL, root, application, method, client, expectedCode);
+
+        // Shut down WildFly with infinite timeout
+        shutdownServer(modelControllerClient, -1);
+
+        short counter = 0;
+        short attempts = 10;
+        do {
+            Thread.sleep(200);
+            counter++;
+        } while (!getState(modelControllerClient).equals("SUSPENDING") && counter < attempts);
+
+        // The Transactions subsystem should delay the suspension
+        if (!(counter < attempts)) {
+            Assert.fail("Server is not SUSPENDING!");
+        }
+
+        // Wait some time to allow WildFly's notification system to print out a WARN
+        // warning that there is a pending txn in the log store
+        Thread.sleep(2 * periodicRecoveryPeriod * 1000);
+
+        deleteAllTransactions(modelControllerClient);
+
+        // Let's undeploy the test application now that we are still in time
+        deployer.undeploy(deploymentName);
+
+        counter = 0;
+        attempts = 20;
+        do {
+            Thread.sleep(500);
+            counter++;
+        } while (managementClient.isServerInRunningState() && counter < attempts);
+
+        if (!(counter < attempts)) {
+            Assert.fail("The server didn't shut down!");
+        }
+
+        try {
+            // This is a workaround to avoid failing because Arquillian
+            // does not handle very well when the container was already
+            // shut down
+            containerController.stop(CONTAINER);
+        } catch (Exception ex) {
+            // The server has already shut down
+        }
+    }
+
+    //========================================
     //=========== utility methods ============
     //========================================
+
+    void restCall(URL baseURL, String root, String application, String method, Client client, int expectedCode) throws URISyntaxException {
+
+        URI simpleTxnBaseUri = UriBuilder.fromUri(baseURL.toURI())
+                .path(root)
+                .path(application)
+                .build();
+
+        Response response = client
+                .target(simpleTxnBaseUri)
+                .path(method)
+                .request()
+                .post(null);
+
+        Assert.assertEquals(
+                String.format("The HTTP request was expected to return %d but it returned %d instead!",
+                        expectedCode,
+                        response.getStatus()),
+                expectedCode, response.getStatus());
+    }
 
     String getState(ModelControllerClient modelControllerClient) throws IOException {
 

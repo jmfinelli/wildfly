@@ -301,8 +301,9 @@
         <container qualifier="graceful-shutdown-server" default="false" mode="manual">
             <configuration>
                 <property name="jbossHome">${basedir}/target/wildfly</property>
-                <property name="javaVmArguments">${server.jvm.args} -Djboss.node.name=graceful-shutdown-server</property>
-                <property name="serverConfig">${jboss.config.file.name:standalone.xml}</property>
+                <!-- -agentlib:jdwp=transport=dt_socket,address=8787,server=y,suspend=y -->
+                <property name="javaVmArguments">${server.jvm.args} -Djboss.node.name=graceful-shutdown-server  -Dorg.jboss.byteman.verbose -Djboss.modules.system.pkgs=org.jboss.byteman -Dorg.jboss.byteman.transform.all -javaagent:${basedir}/target/lib/byteman.jar=listener:true,port:${byteman.port},address:${byteman.host},policy:true</property>
+                <property name="serverConfig">standalone-full.xml</property>
                 <property name="jbossArguments">${jboss.args}</property>
                 <property name="allowConnectingToRunningServer">true</property>
                 <property name="managementAddress">${node0:127.0.0.1}</property>

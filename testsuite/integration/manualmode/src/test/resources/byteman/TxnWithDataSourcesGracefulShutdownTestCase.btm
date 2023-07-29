@@ -1,0 +1,44 @@
+########################################################################
+#
+# Rule to start a count down when a transaction starts
+#
+RULE Start a count down when a 2 phase transaction starts
+CLASS com.arjuna.ats.arjuna.coordinator.BasicAction
+METHOD phase2Commit
+AT ENTRY
+# if there are 2 XA resources per txn then set the countDown 1 will trigger
+# the true return of countDown after the first XA resource committed
+IF TRUE
+DO traceln("[**** BYTEMAN ****] - Starting countdown at 1"), createCountDown("xahalt",1)
+ENDRULE
+
+########################################################################
+#
+# Rule to return an XAException when the countdown ends
+#
+RULE Generate an XA Recovery Record
+CLASS com.arjuna.ats.internal.jta.resources.arjunacore.XAResourceRecord
+METHOD topLevelCommit
+AT ENTRY
+BIND xares = $0;
+jndiName:String = xares.getJndiName();
+# if the count down started at 1 and there are 2 XA resources then
+# it should fire when the second participant commits
+IF countDown("xahalt")
+# returns TwoPhaseOutcome.HEURISTIC_ROLLBACK == 3
+DO traceln("[**** BYTEMAN ****] - topLevelCommit Returning XAER_RMERR for " + jndiName); return 3;
+ENDRULE
+
+########################################################################
+#
+# Rule to trace when XA resources execute phase 2 of an atomic transaction
+#
+RULE Trace topLevelCommit (phase 2 of a 2PC transaction)
+CLASS com.arjuna.ats.internal.jta.resources.arjunacore.XAResourceRecord
+METHOD topLevelCommit
+AT ENTRY
+BIND xares = $0;
+jndiName:String = xares.getJndiName();
+IF TRUE
+DO traceln("[**** BYTEMAN ****] topLevelCommit for " + jndiName)
+ENDRULE

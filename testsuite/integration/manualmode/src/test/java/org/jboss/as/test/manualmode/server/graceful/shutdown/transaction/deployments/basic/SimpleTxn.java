@@ -1,4 +1,4 @@
-package org.jboss.as.test.manualmode.server.graceful.shutdown.transaction.deployments;
+package org.jboss.as.test.manualmode.server.graceful.shutdown.transaction.deployments.basic;
 
 import jakarta.annotation.Resource;
 import jakarta.transaction.TransactionManager;
@@ -38,5 +38,4 @@ public class SimpleTxn {
             return Response.serverError().build();
         }
     }
-
 }

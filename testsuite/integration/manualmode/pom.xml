@@ -92,6 +92,10 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>jakarta.persistence</groupId>
+            <artifactId>jakarta.persistence-api</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.jgroups</groupId>
             <artifactId>jgroups</artifactId>
             <scope>test</scope>
