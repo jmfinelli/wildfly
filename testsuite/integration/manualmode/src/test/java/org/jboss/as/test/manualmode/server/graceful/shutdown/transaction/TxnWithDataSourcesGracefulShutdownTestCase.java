@@ -41,8 +41,8 @@ public class TxnWithDataSourcesGracefulShutdownTestCase extends TransactionTestB
     private static CreateXADataSources createXADataSources = new CreateXADataSources();
 
     @Override
-    void deploy() {
-        deployer.deploy(TXN_WITH_DATASOURCE_DEPLOYMENT);
+    String getDeploymentName() {
+        return TXN_WITH_DATASOURCE_DEPLOYMENT;
     }
 
     @Override
@@ -84,8 +84,7 @@ public class TxnWithDataSourcesGracefulShutdownTestCase extends TransactionTestB
         super.heuristicTransactionCreationBase(baseURL, JaxRsActivator.ROOT,
                 MultiDataSourcesTxn.TXN_GENERATOR_PATH,
                 MultiDataSourcesTxn.SIMPLE_HEURISTIC_PATH,
-                client, 500,
-                TXN_WITH_DATASOURCE_DEPLOYMENT);
+                client, 500);
     }
 
     private static class CreateXADataSources {

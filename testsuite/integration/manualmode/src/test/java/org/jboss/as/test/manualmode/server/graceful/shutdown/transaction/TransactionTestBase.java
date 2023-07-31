@@ -81,17 +81,16 @@ public abstract class TransactionTestBase {
 
         customServerConfiguration();
 
+        // Restart the server
         containerController.stop(CONTAINER);
         containerController.start(CONTAINER);
 
-        deploy();
+        deployer.deploy(getDeploymentName());
     }
 
     void customServerConfiguration() throws Exception {
         setUpRecovery.setUpRecovery(modelControllerClient, managementClient);
     }
-
-    abstract void deploy();
 
     @After
     public void cleanUp() throws Exception {
@@ -100,11 +99,17 @@ public abstract class TransactionTestBase {
         }
 
         customServerTearDown();
+
+        deployer.undeploy(getDeploymentName());
+
+        containerController.stop(CONTAINER);
     }
 
     void customServerTearDown() throws Exception {
         setUpRecovery.tearDownRecovery(modelControllerClient);
     }
+
+    abstract String getDeploymentName();
 
     static ManagementClient createManagementClient(final ModelControllerClient client) throws UnknownHostException {
 
@@ -132,7 +137,36 @@ public abstract class TransactionTestBase {
     //======== Transactions creation =========
     //========================================
 
-    void heuristicTransactionCreationBase(URL baseURL, String root, String application, String method, Client client, int expectedCode, String deploymentName) throws Exception {
+    void successfulTransactionCreationBase(URL baseURL, String root, String application, String method, Client client, int expectedCode) throws Exception {
+
+        restCall(baseURL, root, application, method, client, expectedCode);
+
+        // Shut down WildFly with infinite timeout
+        shutdownServer(modelControllerClient, -1);
+
+        short counter = 0;
+        short attempts = 10;
+        do {
+            Thread.sleep(200);
+            counter++;
+        } while (!getState(modelControllerClient).equals("SUSPENDED") && counter < attempts);
+
+        // The Transactions subsystem should delay the suspension
+        if (!(counter < attempts)) {
+            Assert.fail("Server is not SUSPENDED!");
+        }
+
+        try {
+            // This is a workaround to avoid failing because Arquillian
+            // does not handle very well when the container was already
+            // shut down
+            containerController.stop(CONTAINER);
+        } catch (Exception ex) {
+            // The server has already shut down
+        }
+    }
+
+    void heuristicTransactionCreationBase(URL baseURL, String root, String application, String method, Client client, int expectedCode) throws Exception {
 
         restCall(baseURL, root, application, method, client, expectedCode);
 
@@ -156,9 +190,6 @@ public abstract class TransactionTestBase {
         Thread.sleep(2 * periodicRecoveryPeriod * 1000);
 
         deleteAllTransactions(modelControllerClient);
-
-        // Let's undeploy the test application now that we are still in time
-        deployer.undeploy(deploymentName);
 
         counter = 0;
         attempts = 20;

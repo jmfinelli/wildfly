@@ -12,6 +12,7 @@ import org.jboss.as.test.integration.transactions.TestXAResource;
 public class SimpleTxn {
 
     public static final String TXN_GENERATOR_PATH = "/txn-generator";
+    public static final String SIMPLE_SUCCESSFUL_PATH = "/atomic-action-successful-commit";
     public static final String SIMPLE_HEURISTIC_PATH = "/atomic-action-heuristic-commit";
 
     @Resource(lookup = "java:comp/UserTransaction")
@@ -21,7 +22,26 @@ public class SimpleTxn {
     TransactionManager transactionManager;
 
     @POST
-    @Path(SimpleTxn.SIMPLE_HEURISTIC_PATH)
+    @Path(SIMPLE_SUCCESSFUL_PATH)
+    public Response successfulCommit() {
+        try {
+            userTransaction.begin();
+
+            transactionManager.getTransaction().enlistResource(
+                    new TestXAResource(TestXAResource.TestAction.NONE));
+            transactionManager.getTransaction().enlistResource(
+                    new TestXAResource(TestXAResource.TestAction.NONE));
+
+            userTransaction.commit();
+
+            return Response.ok().build();
+        } catch (Exception exception) {
+            return Response.serverError().build();
+        }
+    }
+
+    @POST
+    @Path(SIMPLE_HEURISTIC_PATH)
     public Response failCommit() {
         try {
             userTransaction.begin();

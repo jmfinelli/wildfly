@@ -20,8 +20,8 @@ public class SimpleTxnGracefulShutdownTestCase extends TransactionTestBase {
     private static final String SIMPLE_TXN_DEPLOYMENT = "simpleTxnDeployment";
 
     @Override
-    void deploy() {
-        deployer.deploy(SIMPLE_TXN_DEPLOYMENT);
+    String getDeploymentName() {
+        return SIMPLE_TXN_DEPLOYMENT;
     }
 
     @TargetsContainer(CONTAINER)
@@ -38,7 +38,6 @@ public class SimpleTxnGracefulShutdownTestCase extends TransactionTestBase {
         super.heuristicTransactionCreationBase(baseURL, JaxRsActivator.ROOT,
                 SimpleTxn.TXN_GENERATOR_PATH,
                 SimpleTxn.SIMPLE_HEURISTIC_PATH,
-                client, 500,
-                SIMPLE_TXN_DEPLOYMENT);
+                client, 500);
     }
 }
