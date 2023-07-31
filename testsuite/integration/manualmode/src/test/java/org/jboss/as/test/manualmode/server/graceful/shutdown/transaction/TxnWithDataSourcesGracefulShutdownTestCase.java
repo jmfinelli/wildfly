@@ -83,7 +83,7 @@ public class TxnWithDataSourcesGracefulShutdownTestCase extends TransactionTestB
 
         super.successfulTransactionCreationBase(baseURL, JaxRsActivator.ROOT,
                 MultiDataSourcesTxn.TXN_GENERATOR_PATH,
-                MultiDataSourcesTxn.SIMPLE_HEURISTIC_PATH,
+                MultiDataSourcesTxn.TRANSACTION_CREATION_PATH,
                 client, 200);
     }
 
@@ -94,10 +94,23 @@ public class TxnWithDataSourcesGracefulShutdownTestCase extends TransactionTestB
         deployRules("TxnWithDataSourcesGracefulShutdownTestCaseHeuristic");
         this.bytemanActivation = true;
 
-        super.heuristicTransactionCreationBase(baseURL, JaxRsActivator.ROOT,
+        super.faultyTransactionCreationBase(baseURL, JaxRsActivator.ROOT,
                 MultiDataSourcesTxn.TXN_GENERATOR_PATH,
-                MultiDataSourcesTxn.SIMPLE_HEURISTIC_PATH,
-                client, 500);
+                MultiDataSourcesTxn.TRANSACTION_CREATION_PATH,
+                client, true, 500);
+    }
+
+    @Test
+    public void testRetryTxnWithDataSources(@ArquillianResource @OperateOnDeployment(TXN_WITH_DATASOURCE_DEPLOYMENT) URL baseURL) throws Exception {
+
+        // Add byteman rules to the server
+        deployRules("TxnWithDataSourcesGracefulShutdownTestCaseRetry");
+        this.bytemanActivation = true;
+
+        super.faultyTransactionCreationBase(baseURL, JaxRsActivator.ROOT,
+                MultiDataSourcesTxn.TXN_GENERATOR_PATH,
+                MultiDataSourcesTxn.TRANSACTION_CREATION_PATH,
+                client, false, 200);
     }
 
     private static class CreateXADataSources {

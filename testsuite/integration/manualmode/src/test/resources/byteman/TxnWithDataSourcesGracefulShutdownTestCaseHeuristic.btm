@@ -25,8 +25,8 @@ jndiName:String = xares.getJndiName();
 # if the count down started at 1 and there are 2 XA resources then
 # it should fire when the second participant commits
 IF countDown("xahalt")
-# returns TwoPhaseOutcome.HEURISTIC_ROLLBACK == 3
-DO traceln("[**** BYTEMAN ****] - topLevelCommit Returning XAER_RMERR for " + jndiName); return 3;
+# returns TwoPhaseOutcome.FINISH_ERROR == 3
+DO traceln("[**** BYTEMAN ****] topLevelCommit - Returning TwoPhaseOutcome.FINISH_ERROR (==3) for " + jndiName); return 3;
 ENDRULE
 
 ########################################################################
@@ -40,5 +40,5 @@ AT ENTRY
 BIND xares = $0;
 jndiName:String = xares.getJndiName();
 IF TRUE
-DO traceln("[**** BYTEMAN ****] topLevelCommit for " + jndiName)
+DO traceln("[**** BYTEMAN ****] topLevelCommit invoked for " + jndiName)
 ENDRULE

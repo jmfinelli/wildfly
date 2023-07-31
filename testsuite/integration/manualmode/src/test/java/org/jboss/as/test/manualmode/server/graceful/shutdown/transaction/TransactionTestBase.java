@@ -170,7 +170,7 @@ public abstract class TransactionTestBase {
         }
     }
 
-    void heuristicTransactionCreationBase(URL baseURL, String root, String application, String method, Client client, int expectedCode) throws Exception {
+    void faultyTransactionCreationBase(URL baseURL, String root, String application, String method, Client client, boolean deleteTransactions, int expectedCode) throws Exception {
 
         restCall(baseURL, root, application, method, client, expectedCode);
 
@@ -193,7 +193,9 @@ public abstract class TransactionTestBase {
         // warning that there is a pending txn in the log store
         Thread.sleep(2 * periodicRecoveryPeriod * 1000);
 
-        deleteAllTransactions(modelControllerClient);
+        if (deleteTransactions) {
+            deleteAllTransactions(modelControllerClient);
+        }
 
         counter = 0;
         attempts = 20;

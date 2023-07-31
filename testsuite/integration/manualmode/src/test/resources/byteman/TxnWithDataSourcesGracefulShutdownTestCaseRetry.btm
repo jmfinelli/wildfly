@@ -1,0 +1,26 @@
+########################################################################
+#
+# Rule to start a counter when a transaction starts
+#
+RULE Start a count down when a 2 phase transaction starts
+CLASS com.arjuna.ats.arjuna.coordinator.BasicAction
+METHOD phase2Commit
+AT ENTRY
+IF createCounter("returnError", 0)
+DO traceln("[**** BYTEMAN ****] - A counter has been initialised to 0")
+ENDRULE
+
+########################################################################
+#
+# Rule to throw XA_RETRY
+#
+RULE Throw XAException(4)
+INTERFACE ^javax.transaction.xa.XAResource
+METHOD commit
+AT ENTRY
+# if the counter is less than 6 and there are 2 XA resources then
+# this rule returns an error for 3 top level commit attempts
+IF incrementCounter("returnError") < 6
+DO traceln("[**** BYTEMAN ****] javax.transaction.xa.XAResource.commit - Throwing XAException(4) == XA_RETRY");
+   throw new javax.transaction.xa.XAException(4);
+ENDRULE

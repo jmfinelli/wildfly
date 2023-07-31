@@ -9,13 +9,13 @@ import jakarta.ws.rs.core.Response;
 public class MultiDataSourcesTxn {
 
     public static final String TXN_GENERATOR_PATH = "/datasource-txn-generator";
-    public static final String SIMPLE_HEURISTIC_PATH = "/atomic-action-heuristic-commit";
+    public static final String TRANSACTION_CREATION_PATH = "/transaction-creation";
 
     @Inject
     private Bean transactionalBean;
 
     @POST
-    @Path(MultiDataSourcesTxn.SIMPLE_HEURISTIC_PATH)
+    @Path(MultiDataSourcesTxn.TRANSACTION_CREATION_PATH)
     public Response failCommit() {
         try {
             transactionalBean.createEntriesInDBs();

@@ -14,6 +14,7 @@ public class SimpleTxn {
     public static final String TXN_GENERATOR_PATH = "/txn-generator";
     public static final String SIMPLE_SUCCESSFUL_PATH = "/atomic-action-successful-commit";
     public static final String SIMPLE_HEURISTIC_PATH = "/atomic-action-heuristic-commit";
+    public static final String SIMPLE_RETRY_PATH = "/atomic-action-retry-commit";
 
     @Resource(lookup = "java:comp/UserTransaction")
     UserTransaction userTransaction;
@@ -50,6 +51,25 @@ public class SimpleTxn {
                     new TestXAResource(TestXAResource.TestAction.COMMIT_THROW_UNKNOWN_XA_EXCEPTION));
             transactionManager.getTransaction().enlistResource(
                     new TestXAResource(TestXAResource.TestAction.NONE));
+
+            userTransaction.commit();
+
+            return Response.ok().build();
+        } catch (Exception exception) {
+            return Response.serverError().build();
+        }
+    }
+
+    @POST
+    @Path(SIMPLE_RETRY_PATH)
+    public Response retruCommit() {
+        try {
+            userTransaction.begin();
+
+            transactionManager.getTransaction().enlistResource(
+                    new TestXAResource(TestXAResource.TestAction.COMMIT_THROW_XAER_RMFAIL));
+            transactionManager.getTransaction().enlistResource(
+                    new TestXAResource(TestXAResource.TestAction.COMMIT_THROW_XAER_RMFAIL));
 
             userTransaction.commit();
 
