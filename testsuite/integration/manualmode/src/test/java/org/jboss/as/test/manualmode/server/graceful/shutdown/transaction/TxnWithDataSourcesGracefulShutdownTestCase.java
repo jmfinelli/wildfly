@@ -79,25 +79,25 @@ public class TxnWithDataSourcesGracefulShutdownTestCase extends TransactionTestB
     }
 
     @Test
-    public void testHeuristicTxnWithDataSources(@ArquillianResource @OperateOnDeployment(TXN_WITH_DATASOURCE_DEPLOYMENT) URL baseURL) throws Exception {
-
-        // Add byteman rules to the server
-        deployRules();
-        this.bytemanActivation = true;
-
-        super.heuristicTransactionCreationBase(baseURL, JaxRsActivator.ROOT,
-                MultiDataSourcesTxn.TXN_GENERATOR_PATH,
-                MultiDataSourcesTxn.SIMPLE_HEURISTIC_PATH,
-                client, 500);
-    }
-
-    @Test
     public void testSuccessfulTxnWithDataSources(@ArquillianResource @OperateOnDeployment(TXN_WITH_DATASOURCE_DEPLOYMENT) URL baseURL) throws Exception {
 
         super.successfulTransactionCreationBase(baseURL, JaxRsActivator.ROOT,
                 MultiDataSourcesTxn.TXN_GENERATOR_PATH,
                 MultiDataSourcesTxn.SIMPLE_HEURISTIC_PATH,
                 client, 200);
+    }
+
+    @Test
+    public void testHeuristicTxnWithDataSources(@ArquillianResource @OperateOnDeployment(TXN_WITH_DATASOURCE_DEPLOYMENT) URL baseURL) throws Exception {
+
+        // Add byteman rules to the server
+        deployRules("TxnWithDataSourcesGracefulShutdownTestCaseHeuristic");
+        this.bytemanActivation = true;
+
+        super.heuristicTransactionCreationBase(baseURL, JaxRsActivator.ROOT,
+                MultiDataSourcesTxn.TXN_GENERATOR_PATH,
+                MultiDataSourcesTxn.SIMPLE_HEURISTIC_PATH,
+                client, 500);
     }
 
     private static class CreateXADataSources {
@@ -174,9 +174,9 @@ public class TxnWithDataSourcesGracefulShutdownTestCase extends TransactionTestB
             System.getProperty("byteman.server.ipaddress", Submit.DEFAULT_ADDRESS),
             Integer.getInteger("byteman.server.port", Submit.DEFAULT_PORT));
 
-    private void deployRules() throws Exception {
+    private void deployRules(String filename) throws Exception {
         bytemanSubmit.addRulesFromResources(Collections.singletonList(
-                TxnWithDataSourcesGracefulShutdownTestCase.class.getClassLoader().getResourceAsStream("byteman/TxnWithDataSourcesGracefulShutdownTestCase.btm")));
+                TxnWithDataSourcesGracefulShutdownTestCase.class.getClassLoader().getResourceAsStream(String.format("byteman/%s.btm", filename))));
     }
 
     private void removeRules() {
