@@ -39,6 +39,7 @@ public class TxnWithDataSourcesGracefulShutdownTestCase extends TransactionTestB
     private static String secondDataSourceName = "TestXADB2";
     private static final String TXN_WITH_DATASOURCE_DEPLOYMENT = "TxnWithDatasourceDeployment";
     private static CreateXADataSources createXADataSources = new CreateXADataSources();
+    private boolean bytemanActivation = false;
 
     @Override
     String getDeploymentName() {
@@ -58,7 +59,9 @@ public class TxnWithDataSourcesGracefulShutdownTestCase extends TransactionTestB
     void customServerTearDown() throws Exception {
         super.customServerTearDown();
 
-        removeRules();
+        if (bytemanActivation) {
+            removeRules();
+        }
 
         // Rollback the Server's configuration
         createXADataSources.tearDownXADataSources(modelControllerClient, firstDataSourceName);
@@ -80,11 +83,21 @@ public class TxnWithDataSourcesGracefulShutdownTestCase extends TransactionTestB
 
         // Add byteman rules to the server
         deployRules();
+        this.bytemanActivation = true;
 
         super.heuristicTransactionCreationBase(baseURL, JaxRsActivator.ROOT,
                 MultiDataSourcesTxn.TXN_GENERATOR_PATH,
                 MultiDataSourcesTxn.SIMPLE_HEURISTIC_PATH,
                 client, 500);
+    }
+
+    @Test
+    public void testSuccessfulTxnWithDataSources(@ArquillianResource @OperateOnDeployment(TXN_WITH_DATASOURCE_DEPLOYMENT) URL baseURL) throws Exception {
+
+        super.successfulTransactionCreationBase(baseURL, JaxRsActivator.ROOT,
+                MultiDataSourcesTxn.TXN_GENERATOR_PATH,
+                MultiDataSourcesTxn.SIMPLE_HEURISTIC_PATH,
+                client, 200);
     }
 
     private static class CreateXADataSources {

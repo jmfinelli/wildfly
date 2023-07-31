@@ -40,4 +40,12 @@ public class SimpleTxnGracefulShutdownTestCase extends TransactionTestBase {
                 SimpleTxn.SIMPLE_HEURISTIC_PATH,
                 client, 500);
     }
+
+    @Test
+    public void testSimpleSuccessfulTxn(@ArquillianResource @OperateOnDeployment(SIMPLE_TXN_DEPLOYMENT) URL baseURL) throws Exception {
+        super.successfulTransactionCreationBase(baseURL, JaxRsActivator.ROOT,
+                SimpleTxn.TXN_GENERATOR_PATH,
+                SimpleTxn.SIMPLE_SUCCESSFUL_PATH,
+                client, 200);
+    }
 }

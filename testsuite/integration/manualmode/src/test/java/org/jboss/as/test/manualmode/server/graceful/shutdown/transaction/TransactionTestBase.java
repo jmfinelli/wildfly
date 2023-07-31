@@ -144,16 +144,20 @@ public abstract class TransactionTestBase {
         // Shut down WildFly with infinite timeout
         shutdownServer(modelControllerClient, -1);
 
-        short counter = 0;
-        short attempts = 10;
-        do {
-            Thread.sleep(200);
-            counter++;
-        } while (!getState(modelControllerClient).equals("SUSPENDED") && counter < attempts);
+        try {
+            short counter = 0;
+            short attempts = 10;
+            do {
+                Thread.sleep(200);
+                counter++;
+            } while (!getState(modelControllerClient).equals("SUSPENDED") && counter < attempts);
 
-        // The Transactions subsystem should delay the suspension
-        if (!(counter < attempts)) {
-            Assert.fail("Server is not SUSPENDED!");
+            // The Transactions subsystem should delay the suspension
+            if (!(counter < attempts)) {
+                Assert.fail("Server is not SUSPENDED!");
+            }
+        } catch (IOException expectedFailure) {
+            // This means that the server is already shut down
         }
 
         try {
