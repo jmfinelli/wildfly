@@ -271,4 +271,16 @@ public interface TransactionLogger extends BasicLogger {
     @LogMessage(level = INFO)
     @Message(id = 49, value = "Transactions subsystem: all in-flight transactions terminated")
     void inFlightTransactionsTerminated();
+
+    @LogMessage(level = WARN)
+    @Message(id = 50, value = "Transactions subsystem: timed out after %d seconds waiting for %d in-flight transactions to terminate, skipping recovery suspension")
+    void timedOutWaitingForTransactions(long timeoutSeconds, long remainingTransactions);
+
+    @LogMessage(level = WARN)
+    @Message(id = 51, value = "Transactions subsystem: timed out suspending recovery")
+    void timedOutSuspendingRecovery();
+
+    @LogMessage(level = WARN)
+    @Message(id = 52, value = "Transactions subsystem: recovery manager stop failed")
+    void recoveryManagerStopFailed(@Cause Exception cause);
 }

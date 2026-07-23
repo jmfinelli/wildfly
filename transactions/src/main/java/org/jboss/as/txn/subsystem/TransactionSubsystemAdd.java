@@ -39,7 +39,6 @@ import org.jboss.as.controller.CapabilityServiceTarget;
 import org.jboss.as.controller.OperationContext;
 import org.jboss.as.controller.OperationFailedException;
 import org.jboss.as.controller.PathAddress;
-import org.jboss.as.controller.ProcessStateNotifier;
 import org.jboss.as.controller.registry.Resource;
 import org.jboss.as.controller.services.path.PathManager;
 import org.jboss.as.controller.services.path.PathManagerService;
@@ -57,7 +56,6 @@ import org.jboss.as.server.ServerEnvironment;
 import org.jboss.as.server.ServerEnvironmentService;
 import org.jboss.as.controller.management.Capabilities;
 import org.jboss.as.server.deployment.Phase;
-import org.jboss.as.server.suspend.SuspendableActivityRegistrar;
 import org.jboss.as.txn.deployment.TransactionDependenciesProcessor;
 import org.jboss.as.txn.deployment.TransactionJndiBindingProcessor;
 import org.jboss.as.txn.deployment.TransactionLeakRollbackProcessor;
@@ -207,6 +205,7 @@ class TransactionSubsystemAdd extends AbstractBoottimeAddStepHandler {
         TransactionSubsystemRootResourceDefinition.STATUS_BINDING.validateAndSet(operation, model);
         TransactionSubsystemRootResourceDefinition.RECOVERY_LISTENER.validateAndSet(operation, model);
         TransactionSubsystemRootResourceDefinition.TRANSACTIONS_RECOVERY_GRACEFUL_SHUTDOWN.validateAndSet(operation, model);
+        TransactionSubsystemRootResourceDefinition.GRACEFUL_SHUTDOWN_TIMEOUT.validateAndSet(operation, model);
     }
 
     private void validateStoreConfig(ModelNode operation, ModelNode model) throws OperationFailedException {
@@ -405,14 +404,14 @@ class TransactionSubsystemAdd extends AbstractBoottimeAddStepHandler {
         final String recoveryStatusBindingName = TransactionSubsystemRootResourceDefinition.STATUS_BINDING.resolveModelAttribute(context, model).asString();
         final boolean recoveryListener = TransactionSubsystemRootResourceDefinition.RECOVERY_LISTENER.resolveModelAttribute(context, model).asBoolean();
         final RecoveryGracefulShutdown gracefulRecoveryShutdown = RecoveryGracefulShutdown.valueOf(TransactionSubsystemRootResourceDefinition.TRANSACTIONS_RECOVERY_GRACEFUL_SHUTDOWN.resolveModelAttribute(context, model).asString().toUpperCase(Locale.ENGLISH));
+        final int gracefulShutdownTimeout = TransactionSubsystemRootResourceDefinition.GRACEFUL_SHUTDOWN_TIMEOUT
+            .resolveModelAttribute(context, model).asInt();
 
         final CapabilityServiceBuilder<?> recoveryManagerServiceServiceBuilder = serviceTarget.addService();
         final Consumer<RecoveryManagerService> consumer = recoveryManagerServiceServiceBuilder.provides(XA_RESOURCE_RECOVERY_REGISTRY_CAPABILITY, TxnServices.JBOSS_TXN_ARJUNA_RECOVERY_MANAGER);
         final Supplier<SocketBinding> recoveryBindingSupplier = recoveryManagerServiceServiceBuilder.requires(SocketBinding.SERVICE_DESCRIPTOR, recoveryBindingName);
         final Supplier<SocketBinding> statusBindingSupplier = recoveryManagerServiceServiceBuilder.requires(SocketBinding.SERVICE_DESCRIPTOR, recoveryStatusBindingName);
         final Supplier<SocketBindingManager> bindingManagerSupplier = recoveryManagerServiceServiceBuilder.requires(SocketBindingManager.SERVICE_DESCRIPTOR);
-        final Supplier<SuspendableActivityRegistrar> suspendableActivityRegistrarSupplier = recoveryManagerServiceServiceBuilder.requires(SuspendableActivityRegistrar.SERVICE_DESCRIPTOR);
-        final Supplier<ProcessStateNotifier> processStateSupplier = recoveryManagerServiceServiceBuilder.requires(ProcessStateNotifier.SERVICE_DESCRIPTOR);
         final Supplier<Executor> executorSupplier = recoveryManagerServiceServiceBuilder.requires(Capabilities.MANAGEMENT_EXECUTOR);
         recoveryManagerServiceServiceBuilder.requires(TxnServices.JBOSS_TXN_CORE_ENVIRONMENT);
         recoveryManagerServiceServiceBuilder.requires(TxnServices.JBOSS_TXN_ARJUNA_OBJECTSTORE_ENVIRONMENT);
@@ -489,7 +488,7 @@ class TransactionSubsystemAdd extends AbstractBoottimeAddStepHandler {
         xaTerminatorSB.setInstance(contextXATerminatorService).install();
 
         // TODO: refactor
-        final ArjunaRecoveryManagerService recoveryManagerService = new ArjunaRecoveryManagerService(consumer, recoveryBindingSupplier, statusBindingSupplier, bindingManagerSupplier, suspendableActivityRegistrarSupplier, processStateSupplier, executorSupplier, orbSupplier, recoveryListener, jts, gracefulRecoveryShutdown);
+        final ArjunaRecoveryManagerService recoveryManagerService = new ArjunaRecoveryManagerService(consumer, recoveryBindingSupplier, statusBindingSupplier, bindingManagerSupplier, executorSupplier, orbSupplier, recoveryListener, jts, gracefulRecoveryShutdown, gracefulShutdownTimeout);
         recoveryManagerServiceServiceBuilder.setInstance(recoveryManagerService);
         recoveryManagerServiceServiceBuilder.install();
     }

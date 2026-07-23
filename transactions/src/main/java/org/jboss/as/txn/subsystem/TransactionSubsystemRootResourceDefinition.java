@@ -43,6 +43,7 @@ import org.jboss.as.controller.registry.OperationEntry;
 import org.jboss.as.controller.registry.Resource;
 import org.jboss.as.txn.config.RecoveryGracefulShutdown;
 import org.jboss.as.txn.logging.TransactionLogger;
+import org.jboss.as.txn.service.ArjunaRecoveryManagerService;
 import org.jboss.dmr.ModelNode;
 import org.jboss.dmr.ModelType;
 import org.jboss.tm.XAResourceRecoveryRegistry;
@@ -110,6 +111,14 @@ public class TransactionSubsystemRootResourceDefinition extends SimpleResourceDe
             .setValidator(EnumValidator.create(RecoveryGracefulShutdown.class))
             .setFlags(AttributeAccess.Flag.RESTART_ALL_SERVICES)
             .setXmlName(Attribute.TRANSACTIONS_RECOVERY_GRACEFUL_SHUTDOWN.getLocalName())
+            .setAllowExpression(true).build();
+
+    public static final SimpleAttributeDefinition GRACEFUL_SHUTDOWN_TIMEOUT = new SimpleAttributeDefinitionBuilder(CommonAttributes.GRACEFUL_SHUTDOWN_TIMEOUT, ModelType.INT, true)
+            .setDefaultValue(new ModelNode(300))
+            .setMeasurementUnit(MeasurementUnit.SECONDS)
+            .setValidator(new IntRangeValidator(0))
+            .setFlags(AttributeAccess.Flag.RESTART_NONE)
+            .setXmlName(Attribute.GRACEFUL_SHUTDOWN_TIMEOUT.getLocalName())
             .setAllowExpression(true).build();
 
     //core environment
@@ -299,7 +308,7 @@ public class TransactionSubsystemRootResourceDefinition extends SimpleResourceDe
 
     // all attributes
     static final AttributeDefinition[] add_attributes = new AttributeDefinition[] {
-            BINDING, STATUS_BINDING, RECOVERY_LISTENER, TRANSACTIONS_RECOVERY_GRACEFUL_SHUTDOWN, NODE_IDENTIFIER, PROCESS_ID_UUID, PROCESS_ID_SOCKET_BINDING,
+            BINDING, STATUS_BINDING, RECOVERY_LISTENER, TRANSACTIONS_RECOVERY_GRACEFUL_SHUTDOWN, GRACEFUL_SHUTDOWN_TIMEOUT, NODE_IDENTIFIER, PROCESS_ID_UUID, PROCESS_ID_SOCKET_BINDING,
             PROCESS_ID_SOCKET_MAX_PORTS, STATISTICS_ENABLED, ENABLE_TSM_STATUS, DEFAULT_TIMEOUT, MAXIMUM_TIMEOUT,
             OBJECT_STORE_RELATIVE_TO, OBJECT_STORE_PATH, JTS, USE_HORNETQ_STORE_PARAM, USE_JOURNAL_STORE_PARAM, USE_JDBC_STORE, JDBC_STORE_DATASOURCE,
             JDBC_ACTION_STORE_DROP_TABLE, JDBC_ACTION_STORE_TABLE_PREFIX, JDBC_COMMUNICATION_STORE_DROP_TABLE,
@@ -321,6 +330,7 @@ public class TransactionSubsystemRootResourceDefinition extends SimpleResourceDe
         attributesWithoutMutuals.remove(USE_JOURNAL_STORE_PARAM);
         attributesWithoutMutuals.remove(USE_JDBC_STORE);
 
+        attributesWithoutMutuals.remove(GRACEFUL_SHUTDOWN_TIMEOUT);
         attributesWithoutMutuals.remove(STATISTICS_ENABLED);
         attributesWithoutMutuals.remove(DEFAULT_TIMEOUT);
         attributesWithoutMutuals.remove(MAXIMUM_TIMEOUT);
@@ -347,6 +357,9 @@ public class TransactionSubsystemRootResourceDefinition extends SimpleResourceDe
         //Register default-timeout attribute
         resourceRegistration.registerReadWriteAttribute(DEFAULT_TIMEOUT, null, new DefaultTimeoutHandler(DEFAULT_TIMEOUT));
         resourceRegistration.registerReadWriteAttribute(MAXIMUM_TIMEOUT, null, new MaximumTimeoutHandler(MAXIMUM_TIMEOUT));
+
+        //Register graceful-shutdown-timeout attribute
+        resourceRegistration.registerReadWriteAttribute(GRACEFUL_SHUTDOWN_TIMEOUT, null, new GracefulShutdownTimeoutHandler(GRACEFUL_SHUTDOWN_TIMEOUT));
 
         // Register jdbc-store-datasource attribute
         resourceRegistration.registerReadWriteAttribute(JDBC_STORE_DATASOURCE, null, new JdbcStoreDatasourceWriteHandler(JDBC_STORE_DATASOURCE));
@@ -603,6 +616,29 @@ public class TransactionSubsystemRootResourceDefinition extends SimpleResourceDe
         @Override
         protected void revertUpdateToRuntime(OperationContext operationContext, ModelNode modelNode, String s, ModelNode modelNode1, ModelNode modelNode2, Void aVoid) throws OperationFailedException {
 
+        }
+    }
+
+    private static class GracefulShutdownTimeoutHandler extends AbstractWriteAttributeHandler<Void> {
+        GracefulShutdownTimeoutHandler(final AttributeDefinition... definitions) {
+            super(definitions);
+        }
+
+        @Override
+        protected boolean applyUpdateToRuntime(final OperationContext context, final ModelNode operation,
+                                               final String attributeName, final ModelNode resolvedValue,
+                                               final ModelNode currentValue, final HandbackHolder<Void> handbackHolder)
+            throws OperationFailedException {
+            ArjunaRecoveryManagerService.setGracefulShutdownTimeout(resolvedValue.asInt());
+            return false;
+        }
+
+        @Override
+        protected void revertUpdateToRuntime(final OperationContext context, final ModelNode operation,
+                                             final String attributeName, final ModelNode valueToRestore,
+                                             final ModelNode valueToRevert, final Void handback)
+            throws OperationFailedException {
+            ArjunaRecoveryManagerService.setGracefulShutdownTimeout(valueToRestore.asInt());
         }
     }
 

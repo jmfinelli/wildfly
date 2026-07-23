@@ -45,7 +45,7 @@ public class TransactionSubsystemTestCase extends AbstractSubsystemBaseTest {
 
     @Override
     protected String getSubsystemXsdPath() throws Exception {
-        return "schema/wildfly-txn_7_0.xsd";
+        return "schema/wildfly-txn_8_0.xsd";
     }
 
     @Override
@@ -117,6 +117,11 @@ public class TransactionSubsystemTestCase extends AbstractSubsystemBaseTest {
     }
 
     @Test
+    public void testParserWildFly40_7_0() throws Exception {
+        standardSubsystemTest("full-7.0.0.xml", false);
+    }
+
+    @Test
     public void testParserWildFly40() throws Exception {
         standardSubsystemTest("full.xml");
     }
@@ -156,7 +161,8 @@ public class TransactionSubsystemTestCase extends AbstractSubsystemBaseTest {
             new FailedOperationTransformationConfig().addFailedAttribute(
                 PathAddress.pathAddress(TransactionExtension.SUBSYSTEM_PATH),
                 new FailedOperationTransformationConfig.NewAttributesConfig(
-                    TransactionSubsystemRootResourceDefinition.TRANSACTIONS_RECOVERY_GRACEFUL_SHUTDOWN)));
+                    TransactionSubsystemRootResourceDefinition.TRANSACTIONS_RECOVERY_GRACEFUL_SHUTDOWN,
+                    TransactionSubsystemRootResourceDefinition.GRACEFUL_SHUTDOWN_TIMEOUT)));
     }
 
     private void testTransformersFull(ModelTestControllerVersion controllerVersion, ModelVersion modelVersion) throws Exception {

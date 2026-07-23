@@ -3,7 +3,7 @@
   ~ SPDX-License-Identifier: Apache-2.0
   -->
 
-<subsystem xmlns="urn:jboss:domain:transactions:8.0">
+<subsystem xmlns="urn:jboss:domain:transactions:7.0">
     <core-environment node-identifier="1">
         <process-id>
             <socket socket-binding="txn-socket-id" socket-process-id-max-ports="10"/>
@@ -11,8 +11,7 @@
     </core-environment>
     <recovery-environment socket-binding="txn-recovery-environment" status-socket-binding="txn-status-manager"
                           recovery-listener="false"
-                          transactions-recovery-graceful-shutdown="ignore"
-                          graceful-shutdown-timeout="300"/>
+                          transactions-recovery-graceful-shutdown="ignore"/>
     <coordinator-environment statistics-enabled="true" enable-tsm-status="true"
                              default-timeout="300" maximum-timeout="86400"/>
     <object-store path="tx-object-store" relative-to="jboss.server.data.dir"/>

@@ -9,12 +9,16 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import com.arjuna.ats.arjuna.common.RecoveryEnvironmentBean;
 import com.arjuna.ats.arjuna.common.recoveryPropertyManager;
+import com.arjuna.ats.arjuna.coordinator.TransactionReaper;
 import com.arjuna.ats.internal.arjuna.recovery.AtomicActionRecoveryModule;
 import com.arjuna.ats.internal.arjuna.recovery.ExpiredTransactionStatusManagerScanner;
 import com.arjuna.ats.internal.jta.recovery.arjunacore.CommitMarkableResourceRecordRecoveryModule;
@@ -29,16 +33,11 @@ import com.arjuna.ats.internal.txoj.recovery.TORecoveryModule;
 import com.arjuna.ats.jbossatx.jta.RecoveryManagerService;
 import com.arjuna.orbportability.internal.utils.PostInitLoader;
 
-import org.jboss.as.controller.ProcessStateNotifier;
 import org.jboss.as.network.ManagedBinding;
 import org.jboss.as.network.SocketBinding;
 import org.jboss.as.network.SocketBindingManager;
-import org.jboss.as.server.suspend.SuspendPriority;
-import org.jboss.as.server.suspend.SuspendableActivityRegistrar;
-import org.jboss.as.server.suspend.SuspendableActivityRegistration;
 import org.jboss.as.txn.config.RecoveryGracefulShutdown;
 import org.jboss.as.txn.logging.TransactionLogger;
-import org.jboss.as.txn.suspend.RecoverySuspendController;
 import org.jboss.msc.Service;
 import org.jboss.msc.service.StartContext;
 import org.jboss.msc.service.StartException;
@@ -58,39 +57,39 @@ public class ArjunaRecoveryManagerService implements Service {
     private final Supplier<ORB> orbSupplier;
     private final Supplier<SocketBinding> recoveryBindingSupplier;
     private final Supplier<SocketBinding> statusBindingSupplier;
-    private final Supplier<SuspendableActivityRegistrar> suspendableActivityRegistrarSupplier;
-    private final Supplier<ProcessStateNotifier> processStateSupplier;
     private final Supplier<Executor> executorSupplier;
 
     private RecoveryManagerService recoveryManagerService;
-    private RecoverySuspendController recoverySuspendController;
-    private final AtomicReference<SuspendableActivityRegistration> activityRegistration = new AtomicReference<>();
     private boolean recoveryListener;
     private final boolean jts;
     private final RecoveryGracefulShutdown gracefulRecoveryShutdown;
     private final Supplier<SocketBindingManager> bindingManagerSupplier;
 
+    private static volatile int gracefulShutdownTimeout = 300;
+
+    public static void setGracefulShutdownTimeout(int timeout) {
+        gracefulShutdownTimeout = timeout;
+    }
+
     public ArjunaRecoveryManagerService(final Consumer<RecoveryManagerService> consumer,
                                         final Supplier<SocketBinding> recoveryBindingSupplier,
                                         final Supplier<SocketBinding> statusBindingSupplier,
                                         final Supplier<SocketBindingManager> bindingManagerSupplier,
-                                        final Supplier<SuspendableActivityRegistrar> suspendableActivityRegistrarSupplier,
-                                        final Supplier<ProcessStateNotifier> processStateSupplier,
                                         final Supplier<Executor> executorSupplier,
                                         final Supplier<ORB> orbSupplier,
                                         final boolean recoveryListener, final boolean jts,
-                                        final RecoveryGracefulShutdown gracefulRecoveryShutdown) {
+                                        final RecoveryGracefulShutdown gracefulRecoveryShutdown,
+                                        final int gracefulShutdownTimeout) {
         this.consumer = consumer;
         this.recoveryBindingSupplier = recoveryBindingSupplier;
         this.statusBindingSupplier = statusBindingSupplier;
-        this.suspendableActivityRegistrarSupplier = suspendableActivityRegistrarSupplier;
         this.bindingManagerSupplier = bindingManagerSupplier;
-        this.processStateSupplier = processStateSupplier;
         this.executorSupplier = executorSupplier;
         this.recoveryListener = recoveryListener;
         this.orbSupplier = orbSupplier;
         this.jts = jts;
         this.gracefulRecoveryShutdown = gracefulRecoveryShutdown;
+        ArjunaRecoveryManagerService.gracefulShutdownTimeout = gracefulShutdownTimeout;
     }
 
     public void start(final StartContext context) throws StartException {
@@ -167,24 +166,74 @@ public class ArjunaRecoveryManagerService implements Service {
                 throw TransactionLogger.ROOT_LOGGER.managerStartFailure(e, "Recovery");
             }
         }
-        recoverySuspendController = new RecoverySuspendController(recoveryManagerService, gracefulRecoveryShutdown, executorSupplier.get());
-        processStateSupplier.get().addPropertyChangeListener(recoverySuspendController);
-        activityRegistration.set(suspendableActivityRegistrarSupplier.get().register(recoverySuspendController, SuspendPriority.LAST));
         consumer.accept(recoveryManagerService);
     }
 
     public void stop(final StopContext context) {
         consumer.accept(null);
-        activityRegistration.getAndSet(null).close();
-        processStateSupplier.get().removePropertyChangeListener(recoverySuspendController);
+
+        final long timeoutSeconds = gracefulShutdownTimeout;
+        final long absoluteDeadlineMs = (timeoutSeconds > 0)
+            ? System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(timeoutSeconds)
+            : 0;
+
+        final Executor executor = executorSupplier.get();
+
+        TransactionLogger.ROOT_LOGGER.waitingForInFlightTransactions();
+        boolean drained = executeBeforeDeadline(
+            () -> TransactionReaper.transactionReaper().waitForAllTxnsToTerminate(),
+            absoluteDeadlineMs, executor);
+
+        if (drained) {
+            TransactionLogger.ROOT_LOGGER.inFlightTransactionsTerminated();
+
+            boolean isGraceful = (gracefulRecoveryShutdown == RecoveryGracefulShutdown.WAIT);
+            TransactionLogger.ROOT_LOGGER.scanSuspensionInitiated();
+            boolean suspended = executeBeforeDeadline(
+                () -> recoveryManagerService.suspend(!isGraceful, isGraceful),
+                absoluteDeadlineMs, executor);
+            if (suspended) {
+                TransactionLogger.ROOT_LOGGER.scanSuspensionCompleted();
+            } else {
+                TransactionLogger.ROOT_LOGGER.timedOutSuspendingRecovery();
+            }
+        } else {
+            TransactionLogger.ROOT_LOGGER.timedOutWaitingForTransactions(
+                timeoutSeconds, TransactionReaper.transactionReaper().numberOfTransactions());
+        }
+
         try {
             recoveryManagerService.stop();
         } catch (Exception e) {
-            // todo log
+            TransactionLogger.ROOT_LOGGER.recoveryManagerStopFailed(e);
         }
         recoveryManagerService.destroy();
         recoveryManagerService = null;
-        recoverySuspendController = null;
+    }
+
+    private boolean executeBeforeDeadline(Runnable task, long absoluteDeadlineMs, Executor executor) {
+        FutureTask<Void> futureTask = new FutureTask<>(() -> {
+            task.run();
+            return null;
+        });
+        executor.execute(futureTask);
+        try {
+            if (absoluteDeadlineMs == 0) {
+                futureTask.get();
+            } else {
+                long remainingMs = absoluteDeadlineMs - System.currentTimeMillis();
+                if (remainingMs <= 0) return false;
+                futureTask.get(remainingMs, TimeUnit.MILLISECONDS);
+            }
+            return true;
+        } catch (TimeoutException e) {
+            return false;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        } catch (ExecutionException e) {
+            return false;
+        }
     }
 
 }
