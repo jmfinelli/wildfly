@@ -42,6 +42,7 @@ import org.jboss.shrinkwrap.api.Archive;
 import org.jboss.shrinkwrap.api.ShrinkWrap;
 import org.jboss.shrinkwrap.api.spec.JavaArchive;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -93,16 +94,22 @@ public class GracefulShutdownTransactionTestCase {
             ), "permissions.xml");
     }
 
+    @Before
+    public void cleanStaleConfig() throws Exception {
+        controller.start(CONTAINER);
+        try (ModelControllerClient client = TestSuiteEnvironment.getModelControllerClient()) {
+            try { removeDeployment(client, PREDESTROY_DEPLOYMENT + ".jar"); } catch (Exception ignored) {}
+            try { removeDeployment(client, LONGRUNNING_DEPLOYMENT + ".jar"); } catch (Exception ignored) {}
+            try { removeSystemProperty(client, "test.txn.sleep.seconds"); } catch (Exception ignored) {}
+        }
+        controller.stop(CONTAINER);
+    }
+
     @After
     public void cleanup() throws Exception {
         if (controller.isStarted(CONTAINER)) {
             try { deployer.undeploy(PREDESTROY_DEPLOYMENT); } catch (Exception ignored) {}
             try { deployer.undeploy(LONGRUNNING_DEPLOYMENT); } catch (Exception ignored) {}
-            try (ModelControllerClient client = TestSuiteEnvironment.getModelControllerClient()) {
-                try { removeSystemProperty(client, "test.txn.sleep.seconds"); } catch (Exception ignored) {}
-                try { removeDeployment(client, PREDESTROY_DEPLOYMENT + ".jar"); } catch (Exception ignored) {}
-                try { removeDeployment(client, LONGRUNNING_DEPLOYMENT + ".jar"); } catch (Exception ignored) {}
-            } catch (Exception ignored) {}
             controller.stop(CONTAINER);
         }
         cleanMarkerDirectory();
