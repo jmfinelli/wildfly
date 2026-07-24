@@ -7,7 +7,6 @@ package org.jboss.as.test.manualmode.transaction;
 import static org.jboss.as.controller.client.helpers.Operations.createAddOperation;
 import static org.jboss.as.controller.client.helpers.Operations.createAddress;
 import static org.jboss.as.controller.client.helpers.Operations.createReadAttributeOperation;
-import static org.jboss.as.controller.client.helpers.Operations.createRemoveOperation;
 import static org.jboss.as.controller.client.helpers.Operations.createWriteAttributeOperation;
 import static org.jboss.as.controller.client.helpers.Operations.getFailureDescription;
 import static org.jboss.as.controller.client.helpers.Operations.isSuccessfulOutcome;
