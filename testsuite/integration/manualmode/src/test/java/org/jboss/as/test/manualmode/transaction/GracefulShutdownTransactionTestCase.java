@@ -7,6 +7,7 @@ package org.jboss.as.test.manualmode.transaction;
 import static org.jboss.as.controller.client.helpers.Operations.createAddOperation;
 import static org.jboss.as.controller.client.helpers.Operations.createAddress;
 import static org.jboss.as.controller.client.helpers.Operations.createReadAttributeOperation;
+import static org.jboss.as.controller.client.helpers.Operations.createRemoveOperation;
 import static org.jboss.as.controller.client.helpers.Operations.createWriteAttributeOperation;
 import static org.jboss.as.controller.client.helpers.Operations.getFailureDescription;
 import static org.jboss.as.controller.client.helpers.Operations.isSuccessfulOutcome;
@@ -97,6 +98,9 @@ public class GracefulShutdownTransactionTestCase {
         if (controller.isStarted(CONTAINER)) {
             try { deployer.undeploy(PREDESTROY_DEPLOYMENT); } catch (Exception ignored) {}
             try { deployer.undeploy(LONGRUNNING_DEPLOYMENT); } catch (Exception ignored) {}
+            try (ModelControllerClient client = TestSuiteEnvironment.getModelControllerClient()) {
+                try { removeSystemProperty(client, "test.txn.sleep.seconds"); } catch (Exception ignored) {}
+            } catch (Exception ignored) {}
             controller.stop(CONTAINER);
         }
         cleanMarkerDirectory();
@@ -251,6 +255,7 @@ public class GracefulShutdownTransactionTestCase {
 
     private ModelNode readAttribute(ModelControllerClient client, String name) throws IOException {
         ModelNode op = createReadAttributeOperation(TXN_SUBSYSTEM_ADDRESS, name);
+        op.get("include-defaults").set(true);
         ModelNode response = client.execute(op);
         if (!isSuccessfulOutcome(response)) {
             fail("Read " + name + " failed: " + getFailureDescription(response));
@@ -270,12 +275,19 @@ public class GracefulShutdownTransactionTestCase {
 
     private void setSystemProperty(ModelControllerClient client, String name, String value) throws IOException {
         ModelNode address = createAddress("system-property", name);
+        removeSystemProperty(client, name);
         ModelNode op = createAddOperation(address);
         op.get("value").set(value);
         ModelNode result = client.execute(op);
         if (!isSuccessfulOutcome(result)) {
             fail("Failed to set system property " + name + ": " + getFailureDescription(result));
         }
+    }
+
+    private void removeSystemProperty(ModelControllerClient client, String name) throws IOException {
+        ModelNode address = createAddress("system-property", name);
+        ModelNode op = createRemoveOperation(address);
+        client.execute(op);
     }
 
     private void cleanMarkerDirectory() {
