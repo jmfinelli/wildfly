@@ -39,7 +39,7 @@ public class LongRunningTransactionBean {
         Thread thread = new Thread(() -> {
             try {
                 InitialContext ctx = new InitialContext();
-                UserTransaction ut = (UserTransaction) ctx.lookup("java:comp/UserTransaction");
+                UserTransaction ut = (UserTransaction) ctx.lookup("java:jboss/UserTransaction");
                 ut.begin();
                 Thread.sleep(sleepSeconds * 1000L);
                 ut.commit();
