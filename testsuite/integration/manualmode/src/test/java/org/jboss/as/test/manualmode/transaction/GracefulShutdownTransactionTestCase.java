@@ -100,6 +100,8 @@ public class GracefulShutdownTransactionTestCase {
             try { deployer.undeploy(LONGRUNNING_DEPLOYMENT); } catch (Exception ignored) {}
             try (ModelControllerClient client = TestSuiteEnvironment.getModelControllerClient()) {
                 try { removeSystemProperty(client, "test.txn.sleep.seconds"); } catch (Exception ignored) {}
+                try { removeDeployment(client, PREDESTROY_DEPLOYMENT + ".jar"); } catch (Exception ignored) {}
+                try { removeDeployment(client, LONGRUNNING_DEPLOYMENT + ".jar"); } catch (Exception ignored) {}
             } catch (Exception ignored) {}
             controller.stop(CONTAINER);
         }
@@ -285,6 +287,12 @@ public class GracefulShutdownTransactionTestCase {
 
     private void removeSystemProperty(ModelControllerClient client, String name) throws IOException {
         ModelNode address = createAddress("system-property", name);
+        ModelNode op = createRemoveOperation(address);
+        client.execute(op);
+    }
+
+    private void removeDeployment(ModelControllerClient client, String deploymentName) throws IOException {
+        ModelNode address = createAddress("deployment", deploymentName);
         ModelNode op = createRemoveOperation(address);
         client.execute(op);
     }
