@@ -142,6 +142,66 @@ public class GracefulShutdownTransactionTestCase {
         controller.stop(CONTAINER);
     }
 
+    @Test
+    public void testInFlightTransactionsDrainBeforeShutdown() throws Exception {
+        controller.start(CONTAINER);
+        try (ModelControllerClient client = TestSuiteEnvironment.getModelControllerClient()) {
+            recordLogBaseline(client);
+            writeAttribute(client, "graceful-shutdown-timeout", 30);
+            setSystemProperty(client, "test.txn.sleep.seconds", "5");
+        }
+        deployer.deploy(LONGRUNNING_DEPLOYMENT);
+        Thread.sleep(1000); // allow background thread to start transaction
+        controller.stop(CONTAINER);
+
+        Path markerFile = Paths.get(LongRunningTransactionBean.MARKER_FILE);
+        assertTrue("DRAINED marker file should exist", Files.exists(markerFile));
+        String result = Files.readString(markerFile).trim();
+        assertEquals("Transaction should have committed before server exit", "DRAINED", result);
+
+        assertTrue("Server log should contain WFLYTX0049 (all in-flight transactions terminated)",
+            serverLogContainsSinceBaseline("WFLYTX0049"));
+    }
+
+    @Test
+    public void testTimeoutExpirySkipsRecoverySuspension() throws Exception {
+        controller.start(CONTAINER);
+        try (ModelControllerClient client = TestSuiteEnvironment.getModelControllerClient()) {
+            recordLogBaseline(client);
+            writeAttribute(client, "graceful-shutdown-timeout", 2);
+            setSystemProperty(client, "test.txn.sleep.seconds", "30");
+        }
+        deployer.deploy(LONGRUNNING_DEPLOYMENT);
+        Thread.sleep(1000); // allow background thread to start transaction
+        controller.stop(CONTAINER);
+
+        assertTrue("Server log should contain WFLYTX0050 (timed out waiting for transactions)",
+            serverLogContainsSinceBaseline("WFLYTX0050"));
+    }
+
+    @Test
+    public void testWaitForeverWithTimeoutZero() throws Exception {
+        controller.start(CONTAINER);
+        try (ModelControllerClient client = TestSuiteEnvironment.getModelControllerClient()) {
+            recordLogBaseline(client);
+            writeAttribute(client, "graceful-shutdown-timeout", 0);
+            setSystemProperty(client, "test.txn.sleep.seconds", "5");
+        }
+        deployer.deploy(LONGRUNNING_DEPLOYMENT);
+        Thread.sleep(1000); // allow background thread to start transaction
+        controller.stop(CONTAINER);
+
+        Path markerFile = Paths.get(LongRunningTransactionBean.MARKER_FILE);
+        assertTrue("DRAINED marker file should exist for timeout=0", Files.exists(markerFile));
+        String result = Files.readString(markerFile).trim();
+        assertEquals("Transaction should have completed with timeout=0", "DRAINED", result);
+
+        assertTrue("Server log should contain WFLYTX0049 (all in-flight transactions terminated)",
+            serverLogContainsSinceBaseline("WFLYTX0049"));
+        assertFalse("Server log should NOT contain WFLYTX0050 (timeout warning) when timeout=0",
+            serverLogContainsSinceBaseline("WFLYTX0050"));
+    }
+
     // --- Utility methods ---
 
     private void recordLogBaseline(ModelControllerClient client) throws Exception {
