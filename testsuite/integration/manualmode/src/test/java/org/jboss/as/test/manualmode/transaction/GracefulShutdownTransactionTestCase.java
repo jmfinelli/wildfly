@@ -202,6 +202,34 @@ public class GracefulShutdownTransactionTestCase {
             serverLogContainsSinceBaseline("WFLYTX0050"));
     }
 
+    @Test
+    public void testRecoveryGracefulShutdownWaitMode() throws Exception {
+        controller.start(CONTAINER);
+        try (ModelControllerClient client = TestSuiteEnvironment.getModelControllerClient()) {
+            recordLogBaseline(client);
+            writeAttribute(client, "transactions-recovery-graceful-shutdown", "wait");
+        }
+        controller.stop(CONTAINER);
+
+        assertTrue("WAIT mode: server log should contain WFLYTX0046 (recovery suspension initiated)",
+            serverLogContainsSinceBaseline("WFLYTX0046"));
+        assertTrue("WAIT mode: server log should contain WFLYTX0047 (recovery suspension completed)",
+            serverLogContainsSinceBaseline("WFLYTX0047"));
+    }
+
+    @Test
+    public void testRecoveryGracefulShutdownIgnoreMode() throws Exception {
+        controller.start(CONTAINER);
+        try (ModelControllerClient client = TestSuiteEnvironment.getModelControllerClient()) {
+            recordLogBaseline(client);
+            writeAttribute(client, "transactions-recovery-graceful-shutdown", "ignore");
+        }
+        controller.stop(CONTAINER);
+
+        assertTrue("IGNORE mode: server log should contain WFLYTX0046 (recovery suspension initiated)",
+            serverLogContainsSinceBaseline("WFLYTX0046"));
+    }
+
     // --- Utility methods ---
 
     private void recordLogBaseline(ModelControllerClient client) throws Exception {
