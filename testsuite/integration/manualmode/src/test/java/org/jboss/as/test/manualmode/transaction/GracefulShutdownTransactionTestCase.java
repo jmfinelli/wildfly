@@ -14,6 +14,7 @@ import static org.jboss.as.test.shared.PermissionUtils.createPermissionsXmlAsset
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.io.FilePermission;
@@ -124,7 +125,7 @@ public class GracefulShutdownTransactionTestCase {
 
             // Write valid value
             ModelNode writeResult = writeAttribute(client, "graceful-shutdown-timeout", 60);
-            assertTrue("Write of 60 should succeed: " + getFailureDescription(writeResult),
+            assertTrue("Write of 60 should succeed",
                 isSuccessfulOutcome(writeResult));
 
             // Read back
@@ -235,7 +236,7 @@ public class GracefulShutdownTransactionTestCase {
     // --- Utility methods ---
 
     private void recordLogBaseline(ModelControllerClient client) throws Exception {
-        serverLogPath = LoggingUtil.getLogPath(client, "file-handler", "FILE");
+        serverLogPath = LoggingUtil.getLogPath(client, "periodic-rotating-file-handler", "FILE");
         logBaseline = LoggingUtil.countLines(serverLogPath);
     }
 
@@ -251,8 +252,9 @@ public class GracefulShutdownTransactionTestCase {
     private ModelNode readAttribute(ModelControllerClient client, String name) throws IOException {
         ModelNode op = createReadAttributeOperation(TXN_SUBSYSTEM_ADDRESS, name);
         ModelNode response = client.execute(op);
-        assertTrue("Read " + name + " failed: " + getFailureDescription(response),
-            isSuccessfulOutcome(response));
+        if (!isSuccessfulOutcome(response)) {
+            fail("Read " + name + " failed: " + getFailureDescription(response));
+        }
         return response.get("result");
     }
 
@@ -271,8 +273,9 @@ public class GracefulShutdownTransactionTestCase {
         ModelNode op = createAddOperation(address);
         op.get("value").set(value);
         ModelNode result = client.execute(op);
-        assertTrue("Failed to set system property " + name + ": " + getFailureDescription(result),
-            isSuccessfulOutcome(result));
+        if (!isSuccessfulOutcome(result)) {
+            fail("Failed to set system property " + name + ": " + getFailureDescription(result));
+        }
     }
 
     private void cleanMarkerDirectory() {
