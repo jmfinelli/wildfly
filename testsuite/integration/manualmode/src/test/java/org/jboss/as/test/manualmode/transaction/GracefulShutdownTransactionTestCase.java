@@ -33,6 +33,7 @@ import org.jboss.arquillian.container.test.api.TargetsContainer;
 import org.jboss.arquillian.junit.Arquillian;
 import org.jboss.arquillian.test.api.ArquillianResource;
 import org.jboss.as.controller.client.ModelControllerClient;
+import org.jboss.as.test.shared.ServerReload;
 import org.jboss.as.test.shared.TestSuiteEnvironment;
 import org.jboss.as.test.shared.logging.LoggingUtil;
 import org.jboss.dmr.ModelNode;
@@ -206,8 +207,9 @@ public class GracefulShutdownTransactionTestCase {
     public void testRecoveryGracefulShutdownWaitMode() throws Exception {
         controller.start(CONTAINER);
         try (ModelControllerClient client = TestSuiteEnvironment.getModelControllerClient()) {
-            recordLogBaseline(client);
             writeAttribute(client, "transactions-recovery-graceful-shutdown", "wait");
+            ServerReload.reloadIfRequired(client);
+            recordLogBaseline(client);
         }
         controller.stop(CONTAINER);
 
@@ -221,8 +223,9 @@ public class GracefulShutdownTransactionTestCase {
     public void testRecoveryGracefulShutdownIgnoreMode() throws Exception {
         controller.start(CONTAINER);
         try (ModelControllerClient client = TestSuiteEnvironment.getModelControllerClient()) {
-            recordLogBaseline(client);
             writeAttribute(client, "transactions-recovery-graceful-shutdown", "ignore");
+            ServerReload.reloadIfRequired(client);
+            recordLogBaseline(client);
         }
         controller.stop(CONTAINER);
 
@@ -273,18 +276,14 @@ public class GracefulShutdownTransactionTestCase {
             isSuccessfulOutcome(result));
     }
 
-    private void removeSystemProperty(ModelControllerClient client, String name) throws IOException {
-        ModelNode address = createAddress("system-property", name);
-        ModelNode op = createRemoveOperation(address);
-        client.execute(op);
-    }
-
     private void cleanMarkerDirectory() {
         try {
             if (Files.exists(MARKER_DIR_PATH)) {
-                Files.list(MARKER_DIR_PATH).forEach(p -> {
-                    try { Files.deleteIfExists(p); } catch (IOException ignored) {}
-                });
+                try (Stream<Path> files = Files.list(MARKER_DIR_PATH)) {
+                    files.forEach(p -> {
+                        try { Files.deleteIfExists(p); } catch (IOException ignored) {}
+                    });
+                }
             }
         } catch (IOException ignored) {}
     }
